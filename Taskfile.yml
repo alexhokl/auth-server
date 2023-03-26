@@ -1,0 +1,300 @@
+version: '3'
+
+vars:
+  PASSWORD: Passw0rd
+  DOMAIN: localhost
+  PORT: "8080"
+  COOKIE_FILE: cookies.txt
+  LOGIN_NAME: alex@test.com
+  LOGIN_PASSWORD: P@ssw0rd
+  SITE: "{{.DOMAIN}}:{{.PORT}}"
+  REDIRECT_URI: "http://127.0.0.1:8088"
+  CLIENT_ID: cli
+
+env:
+  AUTH_REDIS_PASSWORD: "{{.PASSWORD}}"
+  AUTH_PORT: "{{.PORT}}"
+  AUTH_REDIS_SESSION_DB: auth-session
+  AUTH_REDIS_TOKEN_DB: auth-token
+
+tasks:
+  default:
+    cmds:
+      - task: build
+  build:
+    desc: Go build without output
+    cmds:
+    - go build -tags=nomsgpack -o /dev/null
+  run:
+    desc: Run with debug logs
+    deps: [up-db, swagger]
+    silent: true
+    env:
+      AUTH_DATABASE_CONNECTION_STRING: "host=localhost user=appuser password={{.PASSWORD}} dbname=auth port=5432 sslmode=disable"
+      AUTH_REDIS_HOST: localhost:6379
+    cmds:
+    - go run -tags=nomsgpack main.go
+  run-production:
+    desc: Run without debug logs
+    deps: [up-db, swagger]
+    silent: true
+    env:
+      AUTH_DATABASE_CONNECTION_STRING: "host=localhost user=appuser password={{.PASSWORD}} dbname=auth port=5432 sslmode=disable"
+      AUTH_REDIS_HOST: localhost:6379
+      GIN_MODE: release
+    cmds:
+    - go run -tags=nomsgpack main.go
+  test-signup:
+    desc: test signup with xh
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+    - xh post http://{{.SITE}}/signup email={{.LOGIN_NAME}} password={{.LOGIN_PASSWORD}}
+  test-login:
+    desc: test login with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    cmds:
+    - curl -i -X POST http://{{.SITE}}/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+  test-login-domain:
+    desc: test login with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+    - curl -i -X POST https://$DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+  test-logout:
+    desc: test logout with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    cmds:
+    - curl -i -X POST http://{{.SITE}}/signout -b {{.COOKIE_FILE}}
+  test-logout-domain:
+    desc: test logout with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+    - curl -i -X POST https://$DOMAIN/signout -b {{.COOKIE_FILE}}
+  test-authorize:
+    desc: test authorization endpoint with cURL
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    cmds:
+    - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
+  test-authorize-domain:
+    desc: test authorization endpoint with cURL
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+      - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
+  test-token:
+    desc: test authorization and token endpoint with cURL
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which awk)\" ]"
+      msg: awk is not installed
+    - sh: "[ ! -z \"$(which grep)\" ]"
+      msg: grep is not installed
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    vars:
+      TOKEN_ENDPOINT:
+        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
+      AUTHORIZATION_CODE:
+        sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
+    cmds:
+    - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
+  test-token-domain:
+    desc: test authorization and token endpoint with cURL
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which awk)\" ]"
+      msg: awk is not installed
+    - sh: "[ ! -z \"$(which grep)\" ]"
+      msg: grep is not installed
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    vars:
+      AUTHORIZATION_CODE:
+        sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep -i Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
+      TOKEN_ENDPOINT:
+        sh: xh get https://$DOMAIN/.well-known/openid-configuration | jq -r .token_endpoint
+    cmds:
+      - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
+  test-step:
+    desc: test authorization and token endpoint with step
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which step)\" ]"
+      msg: step is not installed
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    - sh: "[ ! -z \"$(which jq)\" ]"
+      msg: jq is not installed
+    vars:
+      AUTH_ENDPOINT:
+        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .authorization_endpoint
+      TOKEN_ENDPOINT:
+        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
+    cmds:
+      - step oauth --header --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --authorization-endpoint {{.AUTH_ENDPOINT}} --token-endpoint {{.TOKEN_ENDPOINT}}
+  test-step-domain:
+    desc: test authorization and token endpoint with step
+    silent: false
+    preconditions:
+    - sh: "[ ! -z \"$(which step)\" ]"
+      msg: step is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+      - step oauth --header --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$DOMAIN
+  test-client-list:
+    desc: test client list with xh
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+    - xh http://{{.SITE}}/clients
+  test-client-create:
+    desc: test client create with xh
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+    - xh post http://{{.SITE}}/clients client_id={{.CLIENT_ID}} client_secret={{.LOGIN_PASSWORD}} redirect_uri={{.REDIRECT_URI}} user_email={{.LOGIN_NAME}}
+  image:
+    desc: Docker build (e.g. task image -- dev)
+    silent: true
+    preconditions:
+    - test -f Dockerfile
+    - sh: docker version
+    cmds:
+    - docker build --target production -t docker.io/alexhokl/auth-server:{{ splitArgs .CLI_ARGS | first }} .
+  up-db:
+    desc: Spin up Docker containers of databases
+    silent: true
+    preconditions:
+    - test -f docker-compose.yml
+    - sh: docker version
+    cmds:
+    - docker-compose up db redis -d
+  up:
+    desc: Spin up all Docker containers
+    silent: true
+    preconditions:
+    - test -f docker-compose.yml
+    cmds:
+    - docker-compose up -d
+  down:
+    desc: Stop and remove all Docker containers
+    silent: true
+    preconditions:
+    - test -f docker-compose.yml
+    - sh: docker version
+    cmds:
+    - docker-compose down
+  caddy:
+    desc: Start reverse proxy to port {{.PORT}}
+    silent: true
+    preconditions:
+    - test -f Caddyfile
+    cmds:
+    - caddy run --config Caddyfile
+  swagger:
+    desc: Generate code of Swagger 2.0 documentation
+    silent: true
+    cmds:
+    - swag init
+  swagger-format:
+    desc: Format Swagger comments in Go code
+    silent: true
+    cmds:
+    - swag fmt
+  swagger-open:
+    desc: Open Swagger documentation in a browser
+    silent: true
+    cmds:
+    - cmd: open http://{{.SITE}}/swagger/index.html
+      platforms: [darwin, linux]
+    - cmd: explorer http://{{.SITE}}/swagger/index.html
+      platforms: [windows]
+  test:
+    desc: Run unit tests
+    silent: true
+    cmds:
+    - go test -v ./...
+  commit:
+    desc: Show the current git commit ID
+    silent: true
+    vars:
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD
+    cmds:
+    - echo {{.GIT_COMMIT}}
+  tidy:
+    desc: Tidy up Go modules
+    cmds:
+    - go mod tidy
+  list-tokens:
+    desc: List keys of tokens stored on Redis
+    env:
+      REDISCLI_AUTH: "{{.PASSWORD}}"
+    cmds:
+    - redis-cli -h localhost KEYS auth-token\*
+  list-sessions:
+    desc: List keys of session stored on Redis
+    env:
+      REDISCLI_AUTH: "{{.PASSWORD}}"
+    cmds:
+    - redis-cli -h localhost KEYS auth-session\*
+  # get-token:
+  #   desc: Get value of code/token using key of Redis
+  #   env:
+  #     REDISCLI_AUTH: "{{.PASSWORD}}"
+  #   vars:
+  #     LAST_TOKEN:
+  #       sh: redis-cli -h localhost KEYS auth-token\* | tail -n 1
+  #   cmds:
+  #   - echo {{.LAST_TOKEN}}
+  #   - redis-cli -h localhost GET {{.LAST_TOKEN}}
+  openid-configuration:
+    desc: Shows configuration of OpenID
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+      - xh http://{{.SITE}}/.well-known/openid-configuration
+  openid-configuration-domain:
+    desc: Shows configuration of OpenID
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+      - xh https://$DOMAIN/.well-known/openid-configuration

@@ -1,0 +1,10 @@
+data/
+
+docker-compose.*
+Dockerfile
+auth-server
+Makefile
+temp.sql
+Caddyfile
+cookies.txt
+redis_password/

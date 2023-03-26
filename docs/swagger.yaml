@@ -1,0 +1,105 @@
+definitions:
+  api.ClientCreateRequest:
+    properties:
+      client_id:
+        example: cli
+        type: string
+      client_secret:
+        example: P@ssw0rd
+        type: string
+      redirect_uri:
+        example: http://localhost:8080/callback
+        type: string
+      user_email:
+        example: alex@test.com
+        type: string
+    required:
+    - client_id
+    - client_secret
+    - redirect_uri
+    - user_email
+    type: object
+  api.UserSignUpRequest:
+    properties:
+      email:
+        example: alex@test.com
+        type: string
+      password:
+        example: P@ssw0rd
+        type: string
+    required:
+    - email
+    - password
+    type: object
+info:
+  contact: {}
+  description: This API provides authentication and authorization services.
+  title: Auth Server API
+  version: 0.0.1
+paths:
+  /clients/:
+    post:
+      consumes:
+      - application/json
+      description: Adds a OAuth client
+      parameters:
+      - description: Client details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.ClientCreateRequest'
+      produces:
+      - application/json
+      responses: {}
+      summary: Adds a client
+      tags:
+      - clients
+  /signin:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - example: alex@test.com
+        in: formData
+        name: email
+        required: true
+        type: string
+      - example: P@ssw0rd
+        in: formData
+        name: password
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Signs in a user
+      tags:
+      - user
+  /signout:
+    post:
+      produces:
+      - application/json
+      responses: {}
+      summary: Signs out a user
+      tags:
+      - user
+  /signup:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user
+      parameters:
+      - description: User sign up request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.UserSignUpRequest'
+      produces:
+      - application/json
+      responses: {}
+      summary: Creates a new user
+      tags:
+      - user
+swagger: "2.0"

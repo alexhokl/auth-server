@@ -1,0 +1,154 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This API provides authentication and authorization services.",
+        "title": "Auth Server API",
+        "contact": {},
+        "version": "0.0.1"
+    },
+    "paths": {
+        "/clients/": {
+            "post": {
+                "description": "Adds a OAuth client",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Adds a client",
+                "parameters": [
+                    {
+                        "description": "Client details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ClientCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/signin": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Signs in a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "alex@test.com",
+                        "name": "email",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "P@ssw0rd",
+                        "name": "password",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/signout": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Signs out a user",
+                "responses": {}
+            }
+        },
+        "/signup": {
+            "post": {
+                "description": "Creates a new user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Creates a new user",
+                "parameters": [
+                    {
+                        "description": "User sign up request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UserSignUpRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        }
+    },
+    "definitions": {
+        "api.ClientCreateRequest": {
+            "type": "object",
+            "required": [
+                "client_id",
+                "client_secret",
+                "redirect_uri",
+                "user_email"
+            ],
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "example": "cli"
+                },
+                "client_secret": {
+                    "type": "string",
+                    "example": "P@ssw0rd"
+                },
+                "redirect_uri": {
+                    "type": "string",
+                    "example": "http://localhost:8080/callback"
+                },
+                "user_email": {
+                    "type": "string",
+                    "example": "alex@test.com"
+                }
+            }
+        },
+        "api.UserSignUpRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "alex@test.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "P@ssw0rd"
+                }
+            }
+        }
+    }
+}
