@@ -32,6 +32,9 @@ tasks:
     env:
       AUTH_DATABASE_CONNECTION_STRING: "host=localhost user=appuser password={{.PASSWORD}} dbname=auth port=5432 sslmode=disable"
       AUTH_REDIS_HOST: localhost:6379
+      AUTH_KEY_ID: testing
+      AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
+      AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
     cmds:
     - go run -tags=nomsgpack main.go
   run-production:
@@ -42,6 +45,9 @@ tasks:
       AUTH_DATABASE_CONNECTION_STRING: "host=localhost user=appuser password={{.PASSWORD}} dbname=auth port=5432 sslmode=disable"
       AUTH_REDIS_HOST: localhost:6379
       GIN_MODE: release
+      AUTH_KEY_ID: testing
+      AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
+      AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
     cmds:
     - go run -tags=nomsgpack main.go
   test-signup:
@@ -298,3 +304,10 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - xh https://$DOMAIN/.well-known/openid-configuration
+  gen-key:
+    desc: Generate keys
+    interactive: true
+    preconditions:
+    - test -d keys
+    cmds:
+    - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256"

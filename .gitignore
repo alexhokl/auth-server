@@ -18,3 +18,4 @@ auth-server
 data/
 Caddyfile
 redis_password/
+keys/

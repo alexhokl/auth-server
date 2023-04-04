@@ -11,6 +11,7 @@ import (
 
 	"github.com/alexhokl/auth-server/api"
 	"github.com/alexhokl/auth-server/db"
+	"github.com/alexhokl/auth-server/jwthelper"
 	authserver "github.com/alexhokl/auth-server/server"
 	"github.com/alexhokl/auth-server/store"
 	"github.com/alexhokl/helper/cli"
@@ -21,6 +22,7 @@ import (
 	oauthredisopts "github.com/go-redis/redis/v8"
 	"github.com/go-session/redis/v3"
 	"github.com/go-session/session/v3"
+	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 	"gorm.io/gorm"
@@ -56,11 +58,34 @@ func main() {
 	dbConn.AutoMigrate(&db.Client{})
 	slog.Info("Database migration completed")
 
-	srv := getOAuthService(dbConn)
+	jwtGenerator, err := jwthelper.NewEcKeyJWTGenerator(
+		viper.GetString("key_id"),
+		viper.GetString("private_key_path"),
+		viper.GetString("private_key_password_file_path"),
+		jwt.SigningMethodES256,
+	)
+	if err != nil {
+		slog.Error(
+			"Unable to create JWT generator",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+	srv := getOAuthService(
+		dbConn,
+		jwtGenerator,
+		viper.GetString("redis_host"),
+		viper.GetString("redis_password"),
+		viper.GetString("redis_session_db"),
+	)
 
 	router := authserver.GetRouter(srv)
 
-	setupSessionManager()
+	setupSessionManager(
+		viper.GetString("redis_host"),
+		viper.GetString("redis_password"),
+		viper.GetString("redis_token_db"),
+	)
 
 	viper.SetDefault("port", defaultPort)
 	viper.SetDefault("shutdown_timeout", 5*time.Second)
@@ -90,19 +115,20 @@ func main() {
 	slog.Info("Server exiting")
 }
 
-func getOAuthService(dbConn *gorm.DB) (*server.Server)  {
+func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisDatabaseName string) *server.Server {
 	clientStore := store.NewClientStore(dbConn)
 	tokenStore := oauthredis.NewRedisStore(
 		&oauthredisopts.Options{
-			Addr: viper.GetString("redis_host"),
-			Password: viper.GetString("redis_password"),
+			Addr:     redisHost,
+			Password: redisPassword,
 		},
-		viper.GetString("redis_token_db"),
+		redisDatabaseName,
 	)
 
 	manager := manage.NewDefaultManager()
 	manager.MapClientStorage(clientStore)
 	manager.MapTokenStorage(tokenStore)
+	manager.MapAccessGenerate(tokenGenerator)
 
 	srv := server.NewDefaultServer(manager)
 	srv.SetAllowGetAccessRequest(false)
@@ -124,18 +150,16 @@ func getOAuthService(dbConn *gorm.DB) (*server.Server)  {
 	return srv
 }
 
-func setupSessionManager() error {
+func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
 	sessionStore := redis.NewRedisStore(
 		&redis.Options{
-			Addr: viper.GetString("redis_host"),
-			Password: viper.GetString("redis_password"),
+			Addr:     redisHost,
+			Password: redisPassword,
 		},
-		viper.GetString("redis_session_db"),
+		redisDatabaseName,
 	)
 	session.InitManager(
 		session.SetSameSite(http.SameSiteStrictMode),
 		session.SetStore(sessionStore),
 	)
-
-	return nil
 }
