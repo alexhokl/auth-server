@@ -35,7 +35,7 @@ require (
 )
 
 require (
-	github.com/alexhokl/helper v0.0.70
+	github.com/alexhokl/helper v0.0.71
 	github.com/bytedance/sonic v1.8.6 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect

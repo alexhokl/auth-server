@@ -15,6 +15,7 @@ import (
 	authserver "github.com/alexhokl/auth-server/server"
 	"github.com/alexhokl/auth-server/store"
 	"github.com/alexhokl/helper/cli"
+	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
@@ -71,19 +72,31 @@ func main() {
 		)
 		os.Exit(1)
 	}
+
+	redisServer := viper.GetString("redis_host")
+	redisPasswordFilePath := viper.GetString("redis_password_file_path")
+	redisPassword, err := iohelper.ReadFirstLineFromFile(redisPasswordFilePath)
+	if err != nil {
+		slog.Error(
+			"Unable to read Redis password from file",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+
 	srv := getOAuthService(
 		dbConn,
 		jwtGenerator,
-		viper.GetString("redis_host"),
-		viper.GetString("redis_password"),
+		redisServer,
+		redisPassword,
 		viper.GetString("redis_session_db"),
 	)
 
 	router := authserver.GetRouter(srv)
 
 	setupSessionManager(
-		viper.GetString("redis_host"),
-		viper.GetString("redis_password"),
+		redisServer,
+		redisPassword,
 		viper.GetString("redis_token_db"),
 	)
 
