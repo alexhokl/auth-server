@@ -24,6 +24,7 @@ func GetRouter(srv *server.Server) *gin.Engine {
 	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
 	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(srv)))
 	r.GET("/.well-known/openid-configuration", api.GetOpenIDConfiguration)
+	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
 
 	clients := r.Group("/clients")
 	clients.Use(api.RequiredAdminAccess())

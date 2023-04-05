@@ -35,6 +35,7 @@ tasks:
       AUTH_KEY_ID: testing
       AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
+      AUTH_WEBFINGER_EMAIL: alex@test.com
     cmds:
     - go run -tags=nomsgpack main.go
   run-production:
@@ -48,6 +49,7 @@ tasks:
       AUTH_KEY_ID: testing
       AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
+      AUTH_WEBFINGER_EMAIL: alex@test.com
     cmds:
     - go run -tags=nomsgpack main.go
   test-signup:
@@ -304,6 +306,24 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - xh https://$DOMAIN/.well-known/openid-configuration
+  webfinger-configuration:
+    desc: Shows configuration of WebFinger
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+      - xh http://{{.SITE}}/.well-known/webfinger
+  webfinger-configuration-domain:
+    desc: Shows configuration of WebFinger
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+      - xh https://$DOMAIN/.well-known/webfinger
   gen-key:
     desc: Generate keys
     interactive: true

@@ -55,6 +55,17 @@ type OpenIDConfiguration struct {
 	CodeChallengeMethodsSupported                      []string `json:"code_challenge_methods_supported,omitempty"`
 }
 
+type WebFingerLinks struct {
+	Rel  string `json:"rel,omitempty"`
+	Type string `json:"type,omitempty"`
+	Href string `json:"href"`
+}
+
+type WebFingerConfiguration struct {
+	Subject string `json:"subject"`
+	Links   []WebFingerLinks `json:"links"`
+}
+
 func (req *UserSignUpRequest) ToUser() *db.User {
 	return &db.User{
 		Email:        req.Email,

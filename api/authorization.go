@@ -8,8 +8,11 @@ import (
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/server"
 	session "github.com/go-session/session/v3"
+	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 )
+
+const ContentTypeJrdJSON = "application/jrd+json"
 
 func HandleInternalError(err error) (re *errors.Response) {
 	switch err {
@@ -52,11 +55,7 @@ func HandleErrorResponse(re *errors.Response) {
 }
 
 func GetOpenIDConfiguration(c *gin.Context) {
-	protocol := getProtocolFromHostHeaders(c)
-	domain := getDomainFromHostHeaders(c)
-	port := getPortFromHostHeaders(c)
-
-	issuer := fmt.Sprintf("%s://%s%s", protocol, domain, port)
+	issuer := getIssuerURL(c)
 	oauthConfig := &OpenIDConfiguration{
 		Issuer:                            issuer,
 		AuthorizationEndpoint:             fmt.Sprintf("%s/authorize", issuer),
@@ -68,6 +67,25 @@ func GetOpenIDConfiguration(c *gin.Context) {
 		CodeChallengeMethodsSupported:     getCodeChallengeMethodsSupported(),
 	}
 	c.JSON(http.StatusOK, oauthConfig)
+}
+
+func GetWebFingerConfiguration(c *gin.Context) {
+	issuer := getIssuerURL(c)
+	links := []WebFingerLinks{
+		{
+			Rel:  "http://openid.net/specs/connect/1.0/issuer",
+			Href: issuer,
+		},
+	}
+	webFingerConfig := &WebFingerConfiguration{
+		Subject: fmt.Sprintf("acct:%s", viper.GetString("webfinger_email")),
+		Links: links,
+	}
+
+	// header has to be set before c.JSON
+	c.Header("Content-Type", ContentTypeJrdJSON)
+
+	c.JSON(http.StatusOK, webFingerConfig)
 }
 
 func GetAuthorizationRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +146,10 @@ func getResponseTypes() []string {
 }
 
 func getScopes() []string {
+	return getOIDCScopes()
+}
+
+func getOIDCScopes() []string {
 	return []string{
 		"openid",
 		"email",
@@ -153,4 +175,12 @@ func getCodeChallengeMethodsSupported() []string {
 	return []string{
 		"S256",
 	}
+}
+
+func getIssuerURL(c *gin.Context) string {
+	protocol := getProtocolFromHostHeaders(c)
+	domain := getDomainFromHostHeaders(c)
+	port := getPortFromHostHeaders(c)
+
+	return fmt.Sprintf("%s://%s%s", protocol, domain, port)
 }

@@ -94,3 +94,5 @@ task test-step-domain
 - [RFC 7522 Security Assertion Markup Language (SAML) 2.0 Profile for OAuth 2.0
   Client Authentication and Authorization
   Grants](https://www.rfc-editor.org/rfc/rfc7522)
+- [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033)
+
