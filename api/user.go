@@ -5,6 +5,7 @@ import (
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
 
@@ -59,8 +60,6 @@ func SignIn(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
-	passwordHash := getPasswordHash(formValues.Password)
-
 	conn, err := db.GetDatabaseConnection()
 	if err != nil {
 		handleInternalError(c, err, "Unable to connect to database")
@@ -84,7 +83,7 @@ func SignIn(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
-	if user.PasswordHash != passwordHash {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(formValues.Password)); err != nil {
 		logger.Warn("Invalid password")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return

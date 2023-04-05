@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	session "github.com/go-session/session/v3"
 	"github.com/spf13/viper"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
 
@@ -41,9 +41,8 @@ func getHostWithoutPort(host string) string {
 }
 
 func getPasswordHash(password string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(password))
-	return fmt.Sprintf("%x", hasher.Sum(nil))
+	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes)
 }
 
 func getDomainFromHostHeaders(c *gin.Context) string {
