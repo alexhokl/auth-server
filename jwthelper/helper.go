@@ -20,7 +20,15 @@ type EcKeyJWTGenerator struct {
 	signingMethod jwt.SigningMethod
 }
 
-func NewEcKeyJWTGenerator(keyID string, pathToPrivateKeyFile string, pathToPrivateKeyPasswordFile string, signingMethod jwt.SigningMethod) (*EcKeyJWTGenerator, error) {
+func NewEcKeyJWTGenerator(kid string, key *ecdsa.PrivateKey, signingMethod jwt.SigningMethod) *EcKeyJWTGenerator {
+	return &EcKeyJWTGenerator{
+		kid:           kid,
+		key:           key,
+		signingMethod: signingMethod,
+	}
+}
+
+func LoadEcdsaPrivateKey(pathToPrivateKeyFile string, pathToPrivateKeyPasswordFile string) (*ecdsa.PrivateKey, error) {
 	privateKeyBytes, err := iohelper.ReadBytesFromFile(pathToPrivateKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key: %w", err)
@@ -35,11 +43,7 @@ func NewEcKeyJWTGenerator(keyID string, pathToPrivateKeyFile string, pathToPriva
 		return nil, fmt.Errorf("unable to get ECDSA key: %w", err)
 	}
 
-	return &EcKeyJWTGenerator{
-		kid:           keyID,
-		key:           key,
-		signingMethod: signingMethod,
-	}, nil
+	return key, nil
 }
 
 func (g *EcKeyJWTGenerator) Token(ctx context.Context, data *oauth2.GenerateBasic, isGenRefresh bool) (string, string, error) {

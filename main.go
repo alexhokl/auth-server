@@ -61,19 +61,28 @@ func main() {
 	dbConn.AutoMigrate(&db.Client{})
 	slog.Info("Database migration completed")
 
-	jwtGenerator, err := jwthelper.NewEcKeyJWTGenerator(
-		viper.GetString("key_id"),
+	ecdsaPrivateKey, err := jwthelper.LoadEcdsaPrivateKey(
 		viper.GetString("private_key_path"),
 		viper.GetString("private_key_password_file_path"),
-		jwt.SigningMethodES256,
 	)
 	if err != nil {
 		slog.Error(
-			"Unable to create JWT generator",
+			"Unable to load private key",
 			slog.String("error", err.Error()),
 		)
 		os.Exit(1)
 	}
+	slog.Info(
+		"Private key loaded",
+		slog.String("name", ecdsaPrivateKey.Params().Name),
+		slog.String("x", ecdsaPrivateKey.X.String()),
+		slog.String("y", ecdsaPrivateKey.Y.String()),
+	)
+	jwtGenerator := jwthelper.NewEcKeyJWTGenerator(
+		viper.GetString("key_id"),
+		ecdsaPrivateKey,
+		jwt.SigningMethodES256,
+	)
 
 	redisServer := viper.GetString("redis_host")
 	redisPasswordFilePath := viper.GetString("redis_password_file_path")
@@ -95,7 +104,7 @@ func main() {
 		viper.GetBool("enforce_pkce"),
 	)
 
-	router := authserver.GetRouter(srv)
+	router := authserver.GetRouter(srv, ecdsaPrivateKey)
 
 	setupSessionManager(
 		redisServer,

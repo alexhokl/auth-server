@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/ecdsa"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -66,6 +68,7 @@ func GetOpenIDConfiguration(c *gin.Context) {
 		Issuer:                            issuer,
 		AuthorizationEndpoint:             fmt.Sprintf("%s/authorize", issuer),
 		TokenEndpoint:                     fmt.Sprintf("%s/token", issuer),
+		JwksUri:                           fmt.Sprintf("%s/.well-known/openid-configuration/jwks", issuer),
 		ScopesSupported:                   getScopes(),
 		ResponseTypesSupported:            getResponseTypes(),
 		GrantTypesSupported:               getGrantTypes(),
@@ -73,6 +76,28 @@ func GetOpenIDConfiguration(c *gin.Context) {
 		CodeChallengeMethodsSupported:     getCodeChallengeMethodsSupported(),
 	}
 	c.JSON(http.StatusOK, oauthConfig)
+}
+
+// GetJSONWebKeySetHandler JSON web key set endpoint
+//
+//	@summary	JSON web key set endpoint
+//	@Tags		OpenID
+//	@Produce	application/json
+//	@Router		/.well-known/openid-configuration/jwks [get]
+func GetJSONWebKeySetHandler(privateKey *ecdsa.PrivateKey) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		key := JSONWebKey{
+			Kty: "EC",
+			Alg: fmt.Sprintf("ES%d", privateKey.Params().BitSize),
+			Crv: privateKey.Params().Name,
+			X:   base64.URLEncoding.EncodeToString(privateKey.X.Bytes()),
+			Y:   base64.URLEncoding.EncodeToString(privateKey.Y.Bytes()),
+		}
+		set := JSONWebKeySet{
+			Keys: []JSONWebKey{key},
+		}
+		c.JSON(http.StatusOK, set)
+	}
 }
 
 // GetWebFingerConfiguration WebFinger endpoint
@@ -91,7 +116,7 @@ func GetWebFingerConfiguration(c *gin.Context) {
 	}
 	webFingerConfig := &WebFingerConfiguration{
 		Subject: fmt.Sprintf("acct:%s", viper.GetString("webfinger_email")),
-		Links: links,
+		Links:   links,
 	}
 
 	// header has to be set before c.JSON

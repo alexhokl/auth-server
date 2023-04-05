@@ -45,6 +45,14 @@ paths:
       summary: OpenID configuration endpoint
       tags:
       - OpenID
+  /.well-known/openid-configuration/jwks:
+    get:
+      produces:
+      - application/json
+      responses: {}
+      summary: JSON web key set endpoint
+      tags:
+      - OpenID
   /.well-known/webfinger:
     get:
       produces:

@@ -28,6 +28,18 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/.well-known/openid-configuration/jwks": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenID"
+                ],
+                "summary": "JSON web key set endpoint",
+                "responses": {}
+            }
+        },
         "/.well-known/webfinger": {
             "get": {
                 "produces": [

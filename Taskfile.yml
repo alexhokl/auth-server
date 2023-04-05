@@ -168,7 +168,7 @@ tasks:
       TOKEN_ENDPOINT:
         sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
     cmds:
-      - step oauth --header --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --authorization-endpoint {{.AUTH_ENDPOINT}} --token-endpoint {{.TOKEN_ENDPOINT}}
+      - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --authorization-endpoint {{.AUTH_ENDPOINT}} --token-endpoint {{.TOKEN_ENDPOINT}}
   test-step-domain:
     desc: test authorization and token endpoint with step
     silent: false
@@ -178,7 +178,7 @@ tasks:
     - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
       msg: environnment variable DOMAIN is not configured
     cmds:
-      - step oauth --header --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$DOMAIN
+      - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$DOMAIN
   test-client-list:
     desc: test client list with xh
     silent: true

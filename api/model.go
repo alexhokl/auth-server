@@ -74,6 +74,27 @@ type WebFingerConfiguration struct {
 	Links   []WebFingerLinks `json:"links"`
 }
 
+type JSONWebKey struct {
+	Kty     string   `json:"kty"`
+	Use     string   `json:"use,omitempty"`
+	KeyOps  []string `json:"key_ops,omitempty"`
+	Alg     string   `json:"alg,omitempty"`
+	Kid     string   `json:"kid,omitempty"`
+	X5u     string   `json:"x5u,omitempty"`
+	X5c     []string `json:"x5c,omitempty"`
+	X5t     string   `json:"x5t,omitempty"`
+	X5tS256 string   `json:"x5t#S256,omitempty"`
+	N       string   `json:"n,omitempty"`
+	E       string   `json:"e,omitempty"`
+	Crv     string   `json:"crv,omitempty"`
+	X       string   `json:"x,omitempty"`
+	Y       string   `json:"y,omitempty"`
+}
+
+type JSONWebKeySet struct {
+	Keys []JSONWebKey `json:"keys"`
+}
+
 func (req *UserSignUpRequest) ToUser() *db.User {
 	return &db.User{
 		Email:        req.Email,
