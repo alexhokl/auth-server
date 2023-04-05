@@ -14,7 +14,7 @@ const cookieEmailKey = "email"
 // SignUp creates a new user
 //
 //	@Summary		Creates a new user
-//	@Description	Creates a new user
+//	@Description	Creates a new user but it does not verify the email address yet
 //	@Tags			user
 //	@Accept			json
 //	@Produce		json
@@ -110,10 +110,11 @@ func SignIn(c *gin.Context) {
 
 // SignOut signs out a user
 //
-//	@Summary	Signs out a user
-//	@Tags		user
-//	@Produce	json
-//	@Router		/signout [post]
+//	@Summary		Signs out a user
+//	@Description	Signs out a user and deletes its email from session. Note that the session cookie would not be deleted.
+//	@Tags			user
+//	@Produce		json
+//	@Router			/signout [post]
 func SignOut(c *gin.Context) {
 	sessionStore, err := getSessionStore(c)
 	if err != nil {

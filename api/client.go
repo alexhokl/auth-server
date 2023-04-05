@@ -82,7 +82,12 @@ func CreateClient(c *gin.Context) {
 
 // UpdateClient patches a client
 //
-//	@Summary	Patches a client
+//	@Summary		Patches a client
+//	@Description	Patches a OAuth client (not implemented yet)
+//	@Tags			clients
+//	@Accept			json
+//	@Produce		json
+//	@Router			/clients/ [patch]
 func UpdateClient(c *gin.Context) {
 	// TODO: Implement
 }
@@ -90,6 +95,9 @@ func UpdateClient(c *gin.Context) {
 // ListClients lists clients
 //
 //	@Summary	Lists clients
+//	@Tags		clients
+//	@Produce	json
+//	@Router		/clients/ [get]
 func ListClients(c *gin.Context) {
 	dbConn, err := db.GetDatabaseConnection()
 	if err != nil {

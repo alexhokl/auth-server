@@ -30,6 +30,14 @@ type ClientResponse struct {
 	UserEmail   string `json:"user_email"`
 }
 
+type TokenRequest struct {
+	GrantType    string `form:"grant_type" binding:"required" example:"authorization_code"`
+	Code         string `form:"code" binding:"required" example:"code"`
+	RedirectUri  string `form:"redirect_uri" binding:"required" example:"http://localhost:8088"`
+	ClientID     string `form:"client_id" binding:"required" example:"cli"`
+	ClientSecret string `form:"client_secret" binding:"required" example:"P@ssw0rd"`
+}
+
 type OpenIDConfiguration struct {
 	Issuer                                             string   `json:"issuer,omitempty"`
 	AuthorizationEndpoint                              string   `json:"authorization_endpoint,omitempty"`
@@ -62,7 +70,7 @@ type WebFingerLinks struct {
 }
 
 type WebFingerConfiguration struct {
-	Subject string `json:"subject"`
+	Subject string           `json:"subject"`
 	Links   []WebFingerLinks `json:"links"`
 }
 

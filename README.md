@@ -79,7 +79,7 @@ task test-step-domain
   management](https://cloud.google.com/blog/products/identity-security/account-authentication-and-password-management-best-practices)
 - [RFC 6749 The OAuth 2.0 Authorization
   Framework](https://www.rfc-editor.org/rfc/rfc6749)
-- [RFC - 8414 OAuth 2.0 Authorization Server
+- [RFC 8414 OAuth 2.0 Authorization Server
   Metadata](https://www.rfc-editor.org/rfc/rfc8414.html)
 - [RFC 7636 Proof Key for Code Exchange by OAuth Public
   Clients](https://www.rfc-editor.org/rfc/rfc7636)
@@ -96,3 +96,5 @@ task test-step-domain
   Grants](https://www.rfc-editor.org/rfc/rfc7522)
 - [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033)
 - [bcrypt](https://en.wikipedia.org/wiki/Bcrypt)
+- [swaggo/swag](https://github.com/swaggo/swag)
+- [swaggo/gin-swagger](https://github.com/swaggo/gin-swagger)

@@ -16,7 +16,79 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/.well-known/openid-configuration": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenID"
+                ],
+                "summary": "OpenID configuration endpoint",
+                "responses": {}
+            }
+        },
+        "/.well-known/webfinger": {
+            "get": {
+                "produces": [
+                    "application/jrd+json"
+                ],
+                "tags": [
+                    "OpenID"
+                ],
+                "summary": "WebFinger endpoint",
+                "responses": {}
+            }
+        },
+        "/authorize": {
+            "get": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Authorize and redirect to the redirect_uri",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Response type (e.g. code)",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect URI",
+                        "name": "redirect_uri",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/clients/": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Lists clients",
+                "responses": {}
+            },
             "post": {
                 "description": "Adds a OAuth client",
                 "consumes": [
@@ -40,6 +112,20 @@ const docTemplate = `{
                         }
                     }
                 ],
+                "responses": {}
+            },
+            "patch": {
+                "description": "Patches a OAuth client (not implemented yet)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Patches a client",
                 "responses": {}
             }
         },
@@ -76,6 +162,7 @@ const docTemplate = `{
         },
         "/signout": {
             "post": {
+                "description": "Signs out a user and deletes its email from session. Note that the session cookie would not be deleted.",
                 "produces": [
                     "application/json"
                 ],
@@ -88,7 +175,7 @@ const docTemplate = `{
         },
         "/signup": {
             "post": {
-                "description": "Creates a new user",
+                "description": "Creates a new user but it does not verify the email address yet",
                 "consumes": [
                     "application/json"
                 ],
@@ -108,6 +195,58 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/api.UserSignUpRequest"
                         }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/token": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Issues a token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "cli",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "P@ssw0rd",
+                        "name": "client_secret",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "code",
+                        "name": "code",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "authorization_code",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "http://localhost:8088",
+                        "name": "redirect_uri",
+                        "in": "formData",
+                        "required": true
                     }
                 ],
                 "responses": {}

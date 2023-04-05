@@ -54,6 +54,12 @@ func HandleErrorResponse(re *errors.Response) {
 	// TODO: implement
 }
 
+// GetOpenIDConfiguration OpenID configuration endpoint
+//
+//	@summary	OpenID configuration endpoint
+//	@Tags		OpenID
+//	@Produce	application/json
+//	@Router		/.well-known/openid-configuration [get]
 func GetOpenIDConfiguration(c *gin.Context) {
 	issuer := getIssuerURL(c)
 	oauthConfig := &OpenIDConfiguration{
@@ -69,6 +75,12 @@ func GetOpenIDConfiguration(c *gin.Context) {
 	c.JSON(http.StatusOK, oauthConfig)
 }
 
+// GetWebFingerConfiguration WebFinger endpoint
+//
+//	@summary	WebFinger endpoint
+//	@Tags		OpenID
+//	@Produce	application/jrd+json
+//	@Router		/.well-known/webfinger [get]
 func GetWebFingerConfiguration(c *gin.Context) {
 	issuer := getIssuerURL(c)
 	links := []WebFingerLinks{
@@ -88,6 +100,16 @@ func GetWebFingerConfiguration(c *gin.Context) {
 	c.JSON(http.StatusOK, webFingerConfig)
 }
 
+// GetAuthorizationRequestHandler Authorizes and redirects to the redirect_uri
+//
+//	@summary	Authorize and redirect to the redirect_uri
+//	@Tags		OAuth
+//	@Accept		x-www-form-urlencoded
+//	@Produce	json
+//	@Param		response_type	query	string	true	"Response type (e.g. code)"
+//	@Param		client_id		query	string	true	"Client ID"
+//	@Param		redirect_uri	query	string	true	"Redirect URI"
+//	@Router		/authorize [get]
 func GetAuthorizationRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := srv.HandleAuthorizeRequest(w, r); err != nil {
@@ -101,6 +123,14 @@ func GetAuthorizationRequestHandler(srv *server.Server) func(w http.ResponseWrit
 	}
 }
 
+// GetTokenRequestHandler Issues a token
+//
+//	@summary	Issues a token
+//	@Tags		OAuth
+//	@Accept		x-www-form-urlencoded
+//	@Produce	json
+//	@Param		body	formData	TokenRequest	true	"Token request"
+//	@Router		/token [post]
 func GetTokenRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := srv.HandleTokenRequest(w, r); err != nil {
@@ -113,6 +143,7 @@ func GetTokenRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *h
 		}
 	}
 }
+
 func GetUserIdInAuthorizationRequest(w http.ResponseWriter, r *http.Request) (userID string, err error) {
 	// session check has been done in the middleware
 	sessionStore, err := session.Start(r.Context(), w, r)
