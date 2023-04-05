@@ -37,6 +37,8 @@ const defaultPort = 8080
 const tokenGarbageCollectionIntervalInSeconds = 600
 
 func main() {
+	setDefaultSettings()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -90,6 +92,7 @@ func main() {
 		redisServer,
 		redisPassword,
 		viper.GetString("redis_session_db"),
+		viper.GetBool("enforce_pkce"),
 	)
 
 	router := authserver.GetRouter(srv)
@@ -99,9 +102,6 @@ func main() {
 		redisPassword,
 		viper.GetString("redis_token_db"),
 	)
-
-	viper.SetDefault("port", defaultPort)
-	viper.SetDefault("shutdown_timeout", 5*time.Second)
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", viper.GetInt("port")),
@@ -128,7 +128,13 @@ func main() {
 	slog.Info("Server exiting")
 }
 
-func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisDatabaseName string) *server.Server {
+func setDefaultSettings() {
+	viper.SetDefault("port", defaultPort)
+	viper.SetDefault("shutdown_timeout", 5*time.Second)
+	viper.SetDefault("enforce_pkce", true)
+}
+
+func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisDatabaseName string, enforcePKCE bool) *server.Server {
 	clientStore := store.NewClientStore(dbConn)
 	tokenStore := oauthredis.NewRedisStore(
 		&oauthredisopts.Options{
@@ -144,6 +150,7 @@ func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redi
 	manager.MapAccessGenerate(tokenGenerator)
 
 	srv := server.NewDefaultServer(manager)
+	srv.Config.ForcePKCE = enforcePKCE
 	srv.SetAllowGetAccessRequest(false)
 	srv.SetAllowedResponseType(
 		oauth2.Code,

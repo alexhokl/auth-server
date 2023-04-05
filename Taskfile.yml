@@ -24,7 +24,7 @@ tasks:
     desc: Go build without output
     cmds:
     - go build -tags=nomsgpack -o /dev/null
-  run:
+  run-debug:
     desc: Run with debug logs
     deps: [up-db, swagger]
     silent: true
@@ -38,7 +38,7 @@ tasks:
       AUTH_WEBFINGER_EMAIL: alex@test.com
     cmds:
     - go run -tags=nomsgpack main.go
-  run-production:
+  run:
     desc: Run without debug logs
     deps: [up-db, swagger]
     silent: true
@@ -51,6 +51,7 @@ tasks:
       AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
       AUTH_WEBFINGER_EMAIL: alex@test.com
+      AUTH_ENFORCE_PKCE: false
     cmds:
     - go run -tags=nomsgpack main.go
   test-signup:
