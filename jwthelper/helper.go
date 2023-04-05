@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alexhokl/helper/cryptohelper"
+	"github.com/alexhokl/helper/httphelper"
 	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/golang-jwt/jwt"
@@ -51,6 +52,8 @@ func (g *EcKeyJWTGenerator) Token(ctx context.Context, data *oauth2.GenerateBasi
 		Audience:  data.Client.GetID(),
 		Subject:   data.UserID,
 		ExpiresAt: data.TokenInfo.GetAccessCreateAt().Add(data.TokenInfo.GetAccessExpiresIn()).Unix(),
+		IssuedAt:  data.TokenInfo.GetAccessCreateAt().Unix(),
+		Issuer:    httphelper.GetBaseURL(data.Request),
 	}
 
 	token := jwt.NewWithClaims(g.signingMethod, claims)

@@ -47,8 +47,8 @@ github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdko
 github.com/agiledragon/gomonkey/v2 v2.3.1/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
-github.com/alexhokl/helper v0.0.71 h1:P3n44Kly4m5QtFnA2ocd75GYoi1EgLpKJfkMjfrPcPU=
-github.com/alexhokl/helper v0.0.71/go.mod h1:gjG2PgMj9bvMSXk0Cg0E8JcpTtoAjWd3H5fxVcE6L5s=
+github.com/alexhokl/helper v0.0.72 h1:ZLwpDSyHNXjsS8bHz30ZFu4g+k5cZJ2GEWVazmkAo80=
+github.com/alexhokl/helper v0.0.72/go.mod h1:gjG2PgMj9bvMSXk0Cg0E8JcpTtoAjWd3H5fxVcE6L5s=
 github.com/andybalholm/brotli v1.0.0/go.mod h1:loMXtMfwqflxFJPmdbJO0a3KNoPuLBgiu3qAvBg8x/Y=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=

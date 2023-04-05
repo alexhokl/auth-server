@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/server"
@@ -63,7 +64,7 @@ func HandleErrorResponse(re *errors.Response) {
 //	@Produce	application/json
 //	@Router		/.well-known/openid-configuration [get]
 func GetOpenIDConfiguration(c *gin.Context) {
-	issuer := getIssuerURL(c)
+	issuer := httphelper.GetBaseURL(c.Request)
 	oauthConfig := &OpenIDConfiguration{
 		Issuer:                            issuer,
 		AuthorizationEndpoint:             fmt.Sprintf("%s/authorize", issuer),
@@ -107,7 +108,7 @@ func GetJSONWebKeySetHandler(privateKey *ecdsa.PrivateKey) func(c *gin.Context) 
 //	@Produce	application/jrd+json
 //	@Router		/.well-known/webfinger [get]
 func GetWebFingerConfiguration(c *gin.Context) {
-	issuer := getIssuerURL(c)
+	issuer := httphelper.GetBaseURL(c.Request)
 	links := []WebFingerLinks{
 		{
 			Rel:  "http://openid.net/specs/connect/1.0/issuer",
@@ -231,12 +232,4 @@ func getCodeChallengeMethodsSupported() []string {
 	return []string{
 		"S256",
 	}
-}
-
-func getIssuerURL(c *gin.Context) string {
-	protocol := getProtocolFromHostHeaders(c)
-	domain := getDomainFromHostHeaders(c)
-	port := getPortFromHostHeaders(c)
-
-	return fmt.Sprintf("%s://%s%s", protocol, domain, port)
 }

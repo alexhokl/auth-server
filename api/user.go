@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/alexhokl/auth-server/db"
+	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
@@ -68,9 +69,9 @@ func SignIn(c *gin.Context) {
 
 	logger := slog.With(
 		slog.String("email", formValues.Email),
-		slog.String(headerXForwardedFor, c.Request.Header.Get(headerXForwardedFor)),
-		slog.String(headerXForwardedHost, c.Request.Header.Get(headerXForwardedHost)),
-		slog.String(headerHost, c.Request.Host),
+		slog.String(httphelper.HeaderXForwardedFor, c.Request.Header.Get(httphelper.HeaderXForwardedFor)),
+		slog.String(httphelper.HeaderXForwardedHost, c.Request.Header.Get(httphelper.HeaderXForwardedHost)),
+		slog.String(httphelper.HeaderHost, c.Request.Host),
 	)
 
 	var user db.User
