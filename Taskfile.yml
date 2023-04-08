@@ -332,4 +332,4 @@ tasks:
     preconditions:
     - test -d keys
     cmds:
-    - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256"
+    - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256" --password-file keys/passphrase --force
