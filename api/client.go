@@ -8,7 +8,6 @@ import (
 	"github.com/alexhokl/auth-server/store"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/exp/slog"
-	"gorm.io/gorm"
 )
 
 // CreateClient adds a client
@@ -33,21 +32,20 @@ func CreateClient(c *gin.Context) {
 		return
 	}
 
-	var user db.User
-	dbResult := dbConn.First(&user, "email = ?", req.UserEmail)
-	if dbResult.Error != nil {
-		if dbResult.Error == gorm.ErrRecordNotFound {
-			slog.Error(
-				"Unable to find user",
-				slog.String("email", req.UserEmail),
-			)
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
+	user, err := db.GetUser(dbConn, req.UserEmail)
+	if err != nil {
+		slog.Error(
+			"Error in retrieving user",
+			slog.String("email", req.UserEmail),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if user == nil {
 		slog.Error(
 			"Unable to find user",
 			slog.String("email", req.UserEmail),
-			slog.String("error", dbResult.Error.Error()),
 		)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -105,13 +103,11 @@ func ListClients(c *gin.Context) {
 		return
 	}
 
-	var clients []db.Client
-
-	dbResult := dbConn.Find(&clients)
-	if dbResult.Error != nil {
+	clients, err := db.GetClients(dbConn)
+	if err != nil {
 		slog.Error(
 			"Unable to list clients",
-			slog.String("error", dbResult.Error.Error()),
+			slog.String("error", err.Error()),
 		)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return

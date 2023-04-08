@@ -19,19 +19,18 @@ func NewClientStore(dbConn *gorm.DB) *Store {
 }
 
 func (s *Store) GetByID(ctx context.Context, id string) (oauth2.ClientInfo, error) {
-	var client db.Client
-	if err := s.dbConn.Where("client_id = ?", id).First(&client).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
+	client, err := db.GetClient(s.dbConn, id)
+	if err != nil {
 		return nil, err
 	}
-
+	if client == nil {
+		return nil, nil
+	}
 	return toClientInfo(client), nil
 }
 
 func (s *Store) Create(ctx context.Context, client oauth2.ClientInfo) error {
-	oauthClient := db.Client{
+	oauthClient := &db.Client{
 		ClientID:     client.GetID(),
 		ClientSecret: client.GetSecret(),
 		RedirectURI:  client.GetDomain(),
@@ -39,6 +38,6 @@ func (s *Store) Create(ctx context.Context, client oauth2.ClientInfo) error {
 		UserEmail:    client.GetUserID(),
 	}
 
-	return s.dbConn.Create(&oauthClient).Error
+	return db.CreateClient(s.dbConn, oauthClient)
 }
 

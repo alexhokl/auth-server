@@ -1,6 +1,8 @@
 package api
 
-import "github.com/alexhokl/auth-server/db"
+import (
+	"github.com/alexhokl/auth-server/db"
+)
 
 type UserSignUpRequest struct {
 	Email    string `form:"email" binding:"required,email" example:"alex@test.com"`
@@ -8,7 +10,7 @@ type UserSignUpRequest struct {
 }
 
 type UserSignInRequest struct {
-	Email    string `form:"email" binding:"required,email" example:"alex@test.com"`
+	Email string `form:"email" binding:"required,email" example:"alex@test.com"`
 }
 
 type UserSignInWithPasswordRequest struct {

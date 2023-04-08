@@ -15,9 +15,9 @@ func isMaliciousRequest(c *gin.Context) error {
 	return nil
 }
 
-func getPasswordHash(password string) string {
+func getPasswordHash(password string) []byte {
 	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes)
+	return bytes
 }
 
 func handleUnexpectedError(c *gin.Context, err error) {

@@ -23,6 +23,7 @@ import (
 	oauthredisopts "github.com/go-redis/redis/v8"
 	"github.com/go-session/redis/v3"
 	"github.com/go-session/session/v3"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
@@ -57,8 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Database connection established")
-	dbConn.AutoMigrate(&db.User{})
-	dbConn.AutoMigrate(&db.Client{})
+	db.Migrate(dbConn)
 	slog.Info("Database migration completed")
 
 	ecdsaPrivateKey, err := jwthelper.LoadEcdsaPrivateKey(
@@ -72,12 +72,7 @@ func main() {
 		)
 		os.Exit(1)
 	}
-	slog.Info(
-		"Private key loaded",
-		// slog.String("name", ecdsaPrivateKey.Params().Name),
-		// slog.String("x", ecdsaPrivateKey.X.String()),
-		// slog.String("y", ecdsaPrivateKey.Y.String()),
-	)
+	slog.Info("Private key loaded")
 	jwtGenerator := jwthelper.NewEcKeyJWTGenerator(
 		viper.GetString("key_id"),
 		ecdsaPrivateKey,
@@ -104,7 +99,19 @@ func main() {
 		viper.GetBool("enforce_pkce"),
 	)
 
-	router := authserver.GetRouter(srv, ecdsaPrivateKey)
+	fidoService, err := getFidoService(
+		viper.GetString("domain"),
+		viper.GetString("application_name"),
+	)
+	if err != nil {
+		slog.Error(
+			"Unable to create FIDO service",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+
+	router := authserver.GetRouter(srv, ecdsaPrivateKey, fidoService)
 
 	setupSessionManager(
 		redisServer,
@@ -191,4 +198,23 @@ func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
 		session.SetSameSite(http.SameSiteStrictMode),
 		session.SetStore(sessionStore),
 	)
+}
+
+func getFidoService(domain string, displayName string) (*api.FidoService, error) {
+	config := &webauthn.Config{
+		RPDisplayName: displayName,
+		RPID:          domain,
+		RPOrigins:     []string{
+			fmt.Sprintf("https://%s", domain),
+			fmt.Sprintf("http://%s:%d", domain, viper.GetInt("port")),
+		},
+	}
+	w, err := webauthn.New(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.FidoService{
+		W: w,
+	}, nil
 }

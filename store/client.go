@@ -23,7 +23,7 @@ func NewClient(clientID, clientSecret, redirectURI, userEmail string, isPublic b
 	}
 }
 
-func toClientInfo(c db.Client) oauth2.ClientInfo {
+func toClientInfo(c *db.Client) oauth2.ClientInfo {
 	return &Client{
 		id:          c.ClientID,
 		secret:      c.ClientSecret,
