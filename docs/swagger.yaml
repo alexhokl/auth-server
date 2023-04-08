@@ -1,4 +1,82 @@
 definitions:
+  api.AttestationObject:
+    properties:
+      attStmt:
+        additionalProperties: true
+        type: object
+      authData:
+        items:
+          type: integer
+        type: array
+      fmt:
+        type: string
+    type: object
+  api.AttestedCredentialData:
+    properties:
+      aaguid:
+        items:
+          type: integer
+        type: array
+      credential_id:
+        items:
+          type: integer
+        type: array
+      public_key:
+        items:
+          type: integer
+        type: array
+    type: object
+  api.AuthenticatorAssertionResponse:
+    properties:
+      authenticatorData:
+        items:
+          type: integer
+        type: array
+      clientDataJSON:
+        items:
+          type: integer
+        type: array
+      signature:
+        items:
+          type: integer
+        type: array
+      userHandle:
+        items:
+          type: integer
+        type: array
+    type: object
+  api.AuthenticatorAttestationResponse:
+    properties:
+      attestationObject:
+        items:
+          type: integer
+        type: array
+      clientDataJSON:
+        items:
+          type: integer
+        type: array
+      transports:
+        items:
+          type: string
+        type: array
+    type: object
+  api.AuthenticatorData:
+    properties:
+      att_data:
+        $ref: '#/definitions/api.AttestedCredentialData'
+      ext_data:
+        items:
+          type: integer
+        type: array
+      flags:
+        type: integer
+      rpid:
+        items:
+          type: integer
+        type: array
+      sign_count:
+        type: integer
+    type: object
   api.ClientCreateRequest:
     properties:
       client_id:
@@ -18,6 +96,131 @@ definitions:
     - client_secret
     - redirect_uri
     - user_email
+    type: object
+  api.CollectedClientData:
+    properties:
+      challenge:
+        type: string
+      new_keys_may_be_added_here:
+        type: string
+      origin:
+        type: string
+      tokenBinding:
+        $ref: '#/definitions/api.TokenBinding'
+      type:
+        type: string
+    type: object
+  api.CredentialAssertionResponse:
+    properties:
+      authenticatorAttachment:
+        type: string
+      clientExtensionResults:
+        $ref: '#/definitions/api.DummyAuthenticationExtensionsClientOutputs'
+      id:
+        type: string
+      rawId:
+        items:
+          type: integer
+        type: array
+      response:
+        $ref: '#/definitions/api.AuthenticatorAssertionResponse'
+      type:
+        type: string
+    type: object
+  api.CredentialCreationResponse:
+    properties:
+      authenticatorAttachment:
+        type: string
+      clientExtensionResults:
+        $ref: '#/definitions/api.DummyAuthenticationExtensionsClientOutputs'
+      id:
+        type: string
+      rawId:
+        items:
+          type: integer
+        type: array
+      response:
+        $ref: '#/definitions/api.AuthenticatorAttestationResponse'
+      transports:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+    type: object
+  api.DummyAuthenticationExtensionsClientOutputs:
+    additionalProperties: true
+    type: object
+  api.DummyCredentialAssertionData:
+    properties:
+      authenticatorAttachment:
+        type: string
+      clientExtensionResults:
+        $ref: '#/definitions/api.DummyAuthenticationExtensionsClientOutputs'
+      id:
+        type: string
+      raw:
+        $ref: '#/definitions/api.CredentialAssertionResponse'
+      rawId:
+        items:
+          type: integer
+        type: array
+      response:
+        $ref: '#/definitions/api.ParsedAssertionResponse'
+      type:
+        type: string
+    type: object
+  api.DummyCredentialCreationData:
+    properties:
+      authenticatorAttachment:
+        type: string
+      clientExtensionResults:
+        $ref: '#/definitions/api.DummyAuthenticationExtensionsClientOutputs'
+      id:
+        type: string
+      raw:
+        $ref: '#/definitions/api.CredentialCreationResponse'
+      rawId:
+        items:
+          type: integer
+        type: array
+      response:
+        $ref: '#/definitions/api.DummyParsedAttestationResponse'
+      type:
+        type: string
+    type: object
+  api.DummyParsedAttestationResponse:
+    properties:
+      attestationObject:
+        $ref: '#/definitions/api.AttestationObject'
+      collectedClientData:
+        $ref: '#/definitions/api.CollectedClientData'
+      transports:
+        items:
+          type: string
+        type: array
+    type: object
+  api.ParsedAssertionResponse:
+    properties:
+      authenticatorData:
+        $ref: '#/definitions/api.AuthenticatorData'
+      collectedClientData:
+        $ref: '#/definitions/api.CollectedClientData'
+      signature:
+        items:
+          type: integer
+        type: array
+      userHandle:
+        items:
+          type: integer
+        type: array
+    type: object
+  api.TokenBinding:
+    properties:
+      id:
+        type: string
+      status:
+        type: string
     type: object
   api.UserSignUpRequest:
     properties:
@@ -122,6 +325,60 @@ paths:
       summary: Adds a client
       tags:
       - clients
+  /fido/register:
+    post:
+      consumes:
+      - application/json
+      description: This completes the dance for registering a new credential
+      parameters:
+      - description: Credential creation request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.DummyCredentialCreationData'
+      produces:
+      - application/json
+      responses: {}
+      summary: Verifies and creates a new credential
+      tags:
+      - user
+  /fido/register/challenge:
+    post:
+      description: This starts the dance for registering a new credential
+      produces:
+      - application/json
+      responses: {}
+      summary: Serves a challenge for registering a new credential
+      tags:
+      - user
+  /fido/signin:
+    post:
+      consumes:
+      - application/json
+      description: This completes the dance for sign in
+      parameters:
+      - description: Credential assertion request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.DummyCredentialAssertionData'
+      produces:
+      - application/json
+      responses: {}
+      summary: Verifies user credential and sign in
+      tags:
+      - user
+  /fido/signin/challenge:
+    post:
+      description: This starts the dance for sign in
+      produces:
+      - application/json
+      responses: {}
+      summary: Serves a challenge for starting a login dance
+      tags:
+      - user
   /signin:
     post:
       consumes:

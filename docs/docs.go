@@ -141,6 +141,86 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/fido/register": {
+            "post": {
+                "description": "This completes the dance for registering a new credential",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Verifies and creates a new credential",
+                "parameters": [
+                    {
+                        "description": "Credential creation request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.DummyCredentialCreationData"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/fido/register/challenge": {
+            "post": {
+                "description": "This starts the dance for registering a new credential",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Serves a challenge for registering a new credential",
+                "responses": {}
+            }
+        },
+        "/fido/signin": {
+            "post": {
+                "description": "This completes the dance for sign in",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Verifies user credential and sign in",
+                "parameters": [
+                    {
+                        "description": "Credential assertion request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.DummyCredentialAssertionData"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/fido/signin/challenge": {
+            "post": {
+                "description": "This starts the dance for sign in",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Serves a challenge for starting a login dance",
+                "responses": {}
+            }
+        },
         "/signin": {
             "post": {
                 "consumes": [
@@ -283,6 +363,125 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.AttestationObject": {
+            "type": "object",
+            "properties": {
+                "attStmt": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "authData": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "fmt": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AttestedCredentialData": {
+            "type": "object",
+            "properties": {
+                "aaguid": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "credential_id": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "public_key": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "api.AuthenticatorAssertionResponse": {
+            "type": "object",
+            "properties": {
+                "authenticatorData": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "clientDataJSON": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "signature": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "userHandle": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "api.AuthenticatorAttestationResponse": {
+            "type": "object",
+            "properties": {
+                "attestationObject": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "clientDataJSON": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "transports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.AuthenticatorData": {
+            "type": "object",
+            "properties": {
+                "att_data": {
+                    "$ref": "#/definitions/api.AttestedCredentialData"
+                },
+                "ext_data": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "flags": {
+                    "type": "integer"
+                },
+                "rpid": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "sign_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "api.ClientCreateRequest": {
             "type": "object",
             "required": [
@@ -307,6 +506,197 @@ const docTemplate = `{
                 "user_email": {
                     "type": "string",
                     "example": "alex@test.com"
+                }
+            }
+        },
+        "api.CollectedClientData": {
+            "type": "object",
+            "properties": {
+                "challenge": {
+                    "type": "string"
+                },
+                "new_keys_may_be_added_here": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string"
+                },
+                "tokenBinding": {
+                    "$ref": "#/definitions/api.TokenBinding"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CredentialAssertionResponse": {
+            "type": "object",
+            "properties": {
+                "authenticatorAttachment": {
+                    "type": "string"
+                },
+                "clientExtensionResults": {
+                    "$ref": "#/definitions/api.DummyAuthenticationExtensionsClientOutputs"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "rawId": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "response": {
+                    "$ref": "#/definitions/api.AuthenticatorAssertionResponse"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CredentialCreationResponse": {
+            "type": "object",
+            "properties": {
+                "authenticatorAttachment": {
+                    "type": "string"
+                },
+                "clientExtensionResults": {
+                    "$ref": "#/definitions/api.DummyAuthenticationExtensionsClientOutputs"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "rawId": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "response": {
+                    "$ref": "#/definitions/api.AuthenticatorAttestationResponse"
+                },
+                "transports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DummyAuthenticationExtensionsClientOutputs": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "api.DummyCredentialAssertionData": {
+            "type": "object",
+            "properties": {
+                "authenticatorAttachment": {
+                    "type": "string"
+                },
+                "clientExtensionResults": {
+                    "$ref": "#/definitions/api.DummyAuthenticationExtensionsClientOutputs"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "raw": {
+                    "$ref": "#/definitions/api.CredentialAssertionResponse"
+                },
+                "rawId": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "response": {
+                    "$ref": "#/definitions/api.ParsedAssertionResponse"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DummyCredentialCreationData": {
+            "type": "object",
+            "properties": {
+                "authenticatorAttachment": {
+                    "type": "string"
+                },
+                "clientExtensionResults": {
+                    "$ref": "#/definitions/api.DummyAuthenticationExtensionsClientOutputs"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "raw": {
+                    "$ref": "#/definitions/api.CredentialCreationResponse"
+                },
+                "rawId": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "response": {
+                    "$ref": "#/definitions/api.DummyParsedAttestationResponse"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DummyParsedAttestationResponse": {
+            "type": "object",
+            "properties": {
+                "attestationObject": {
+                    "$ref": "#/definitions/api.AttestationObject"
+                },
+                "collectedClientData": {
+                    "$ref": "#/definitions/api.CollectedClientData"
+                },
+                "transports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.ParsedAssertionResponse": {
+            "type": "object",
+            "properties": {
+                "authenticatorData": {
+                    "$ref": "#/definitions/api.AuthenticatorData"
+                },
+                "collectedClientData": {
+                    "$ref": "#/definitions/api.CollectedClientData"
+                },
+                "signature": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "userHandle": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "api.TokenBinding": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
                 }
             }
         },
@@ -340,6 +730,8 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "This API provides authentication and authorization services.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
 }
 
 func init() {

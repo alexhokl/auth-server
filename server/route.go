@@ -11,7 +11,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey) *gin.Engine {
+func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -30,6 +30,15 @@ func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey) *gin.E
 	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(privateKey))
 	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
 
+	fidoGroup := r.Group("/fido")
+	fidoGroup.POST("/register/challenge", api.RequiredAuthenticated(), fidoService.RegisterChallenge)
+	fidoGroup.POST("/register", api.RequiredAuthenticated(), fidoService.Register)
+	fidoGroup.POST("/signin/challenge", fidoService.LoginChallenge)
+	fidoGroup.POST("/signin", fidoService.Login)
+	fidoGroup.GET("/credentials", api.RequiredAuthenticated(), fidoService.GetCredentials)
+	fidoGroup.DELETE("/credential/:id", api.RequiredAuthenticated(), fidoService.DeleteCredential)
+	fidoGroup.PATCH("/credential/:id", api.RequiredAuthenticated(), fidoService.UpdateCredential)
+
 	clients := r.Group("/clients")
 	clients.Use(api.RequiredAdminAccess())
 	clients.POST("", api.CreateClient)
@@ -38,8 +47,12 @@ func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey) *gin.E
 
 	r.StaticFile("/signin", "./assets/signin.html")
 	r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
-	r.StaticFile("/assets/scripts.js", "./assets/scripts.js")
+	r.StaticFile("/assets/signin.js", "./assets/signin.js")
 	r.StaticFile("/assets/styles.css", "./assets/styles.css")
+	r.StaticFile("/assets/authenticated.js", "./assets/authenticated.js")
+	r.StaticFile("/assets/http.js", "./assets/http.js")
+	r.GET("/authenticated", api.RequiredAuthenticated(), api.AuthenticatedUI)
+	r.StaticFile("/", "./assets/home.html")
 
 	return r
 }

@@ -1,6 +1,8 @@
 package api
 
-import "github.com/alexhokl/auth-server/db"
+import (
+	"github.com/alexhokl/auth-server/db"
+)
 
 type UserSignUpRequest struct {
 	Email    string `form:"email" binding:"required,email" example:"alex@test.com"`
@@ -8,7 +10,7 @@ type UserSignUpRequest struct {
 }
 
 type UserSignInRequest struct {
-	Email    string `form:"email" binding:"required,email" example:"alex@test.com"`
+	Email string `form:"email" binding:"required,email" example:"alex@test.com"`
 }
 
 type UserSignInWithPasswordRequest struct {
@@ -39,6 +41,10 @@ type TokenRequest struct {
 	RedirectUri  string `form:"redirect_uri" binding:"required" example:"http://localhost:8088"`
 	ClientID     string `form:"client_id" binding:"required" example:"cli"`
 	ClientSecret string `form:"client_secret" binding:"required" example:"P@ssw0rd"`
+}
+
+type CredentialNameRequest struct {
+	Name string `json:"name" binding:"required" example:"My FIDO key"`
 }
 
 type OpenIDConfiguration struct {
@@ -96,6 +102,11 @@ type JSONWebKey struct {
 
 type JSONWebKeySet struct {
 	Keys []JSONWebKey `json:"keys"`
+}
+
+type CredentialInfo struct {
+	ID   []byte `json:"id"`
+	Name string `json:"name"`
 }
 
 func (req *UserSignUpRequest) ToUser() *db.User {

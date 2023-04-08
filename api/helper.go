@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -15,9 +17,9 @@ func isMaliciousRequest(c *gin.Context) error {
 	return nil
 }
 
-func getPasswordHash(password string) string {
+func getPasswordHash(password string) []byte {
 	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes)
+	return bytes
 }
 
 func handleUnexpectedError(c *gin.Context, err error) {
@@ -28,4 +30,19 @@ func handleUnexpectedError(c *gin.Context, err error) {
 func handleInternalError(c *gin.Context, err error, internalErrorMessage string) {
 	slog.Error(internalErrorMessage, slog.String("error", err.Error()))
 	c.AbortWithStatus(http.StatusInternalServerError)
+}
+
+func handleBadRequest(c *gin.Context, err error, internalErrorMessage string) {
+	slog.Error(internalErrorMessage, slog.String("error", err.Error()))
+	c.AbortWithStatus(http.StatusBadRequest)
+}
+
+func generateUniqueCredentialName(existingCredentialNames []string) string {
+	for i := 0; i < 100; i++ {
+		generatedName := fmt.Sprintf("key %d", i)
+		if !slices.Contains(existingCredentialNames, generatedName) {
+			return generatedName
+		}
+	}
+	return ""
 }

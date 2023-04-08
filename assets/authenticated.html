@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sign In</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sign In">
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header>
+  </header>
+
+  <section>
+
+    <div>
+        <button id="register" onclick="registerKey()" >Register a new key</button>
+    </div>
+
+    <div>
+        <p>Current keys</p>
+        <table id="key_table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Key ID</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="key_table_body">
+          </tbody>
+        </table>
+    </div>
+
+    <div>
+        <button id="signout" onclick="signOut()" >Sign Out</button>
+    </div>
+
+  </section>
+
+  <footer>
+  </footer>
+
+  <script src="/assets/http.js"></script>
+  <script src="/assets/authenticated.js"></script>
+</body>
+</html>

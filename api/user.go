@@ -5,7 +5,6 @@ import (
 	"net/url"
 
 	"github.com/alexhokl/auth-server/db"
-	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
@@ -35,8 +34,8 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	if result := conn.Create(user); result.Error != nil {
-		handleInternalError(c, result.Error, "Unable to create user")
+	if err := db.CreateUser(conn, user); err != nil {
+		handleInternalError(c, err, "Unable to create user")
 		return
 	}
 
@@ -109,21 +108,26 @@ func SignInPasswordChallenge(c *gin.Context) {
 
 	logger := slog.With(
 		slog.String("email", email),
-		slog.String(httphelper.HeaderXForwardedFor, c.Request.Header.Get(httphelper.HeaderXForwardedFor)),
-		slog.String(httphelper.HeaderXForwardedHost, c.Request.Header.Get(httphelper.HeaderXForwardedHost)),
-		slog.String(httphelper.HeaderHost, c.Request.Host),
 	)
 
-	var user db.User
-	dbResult := conn.First(&user, "email = ?", email)
-	if dbResult.Error != nil {
+	user, err := db.GetUser(conn, email)
+	if err != nil {
 		logger.Warn(
 			"Unable to find user",
-			slog.String("error", dbResult.Error.Error()),
+			slog.String("error", err.Error()),
 		)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
+	if user == nil {
+		logger.Warn(
+			"User not found",
+			slog.String("email", email),
+		)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		return
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(formValues.Password)); err != nil {
 		logger.Warn("Invalid password")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
@@ -167,6 +171,14 @@ func SignOut(c *gin.Context) {
 
 func SignInChallengeUI(c *gin.Context) {
 	c.File("./assets/signin_challenge.html")
+}
+
+func AuthenticatedUI(c *gin.Context) {
+	c.File("./assets/authenticated.html")
+}
+
+func HomeUI(c *gin.Context) {
+	c.File("./assets/home.html")
 }
 
 func HasEmailInSession(c *gin.Context) {

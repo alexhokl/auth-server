@@ -40,6 +40,12 @@ task test-password
 task test-token
 ```
 
+To test WebAuthn (FIDO2) registration
+
+1. Sign-in using password via `http://localhost:8080/`
+2. Once authenticated, press button `Register key` via
+   `http://localhost:8080/authenticated/`
+
 ### Using MagicDNS of Tailscale and Caddy
 
 Assuming the domain is `node-name.some-name.ts.net`.
@@ -79,6 +85,26 @@ To test sign-in and getting access token
 
 ```sh
 task test-step-domain
+```
+
+### Webauthn (FIDO2)
+
+#### Encoding
+
+This server implementation uses
+[base64url](https://datatracker.ietf.org/doc/html/rfc4648#section-5) encoding.
+As a result, front-end has to convert standard `base64` encoding to the
+encoding.
+
+#### Default authenticator selection
+
+```json
+"authenticatorSelection": {
+  "authenticatorAttachment": "cross-platform",
+  "requireResidentKey": false,
+  "residentKey": "discouraged",
+  "userVerification": "required"
+}
 ```
 
 ## References

@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/alexhokl/helper/iohelper"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/spf13/viper"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func GetDatabaseConnection() (*gorm.DB, error) {
@@ -27,4 +29,149 @@ func GetDatabaseConnection() (*gorm.DB, error) {
 		return nil, err
 	}
 	return conn, nil
+}
+
+func Migrate(db *gorm.DB) {
+	db.AutoMigrate(&User{})
+	db.AutoMigrate(&Client{})
+	db.AutoMigrate(&UserCredential{})
+}
+
+func GetUser(db *gorm.DB, email string) (*User, error) {
+	var user User
+	dbResult := db.Preload(clause.Associations).First(&user, "email = ?", email)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+	return &user, nil
+}
+
+func CreateUser(db *gorm.DB, user *User) error {
+	if dbResult := db.Create(user); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func CreateCredential(db *gorm.DB, credential *UserCredential) error {
+	if dbResult := db.Create(credential); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func GetCredentialDescriptors(db *gorm.DB, email string) ([]protocol.CredentialDescriptor, error) {
+	var credentials []UserCredential
+	dbResult := db.Where("user_email = ?", email).Find(&credentials)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+	var credentialDescriptors []protocol.CredentialDescriptor
+	for _, credential := range credentials {
+		credentialDescriptors = append(credentialDescriptors, protocol.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: credential.ID,
+			AttestationType: credential.AttestationType,
+			Transport:   credential.Transport,
+		})
+	}
+	return credentialDescriptors, nil
+}
+
+func GetCredentials(db *gorm.DB, email string) ([]UserCredential, error) {
+	var credentials []UserCredential
+	dbResult := db.Where("user_email = ?", email).Find(&credentials)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+
+	return credentials, nil
+}
+
+func GetCredentialNames(db *gorm.DB, email string) ([]string, error) {
+	var credentials []UserCredential
+	dbResult := db.Where("user_email = ?", email).Find(&credentials)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+	var names []string
+	for _, credential := range credentials {
+		names = append(names, credential.FriendlyName)
+	}
+	return names, nil
+}
+
+func DeleteCredential(db *gorm.DB, email string, id []byte) error {
+	var credential UserCredential
+	searchResult := db.Where("user_email = ? AND id = ?", email, id).First(&credential)
+	if searchResult.Error != nil {
+		if searchResult.Error == gorm.ErrRecordNotFound {
+			return fmt.Errorf("credential not found")
+		}
+		return searchResult.Error
+	}
+	dbResult := db.Delete(credential)
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func UpdateCredential(db *gorm.DB, email string, id []byte, friendlyName string) error {
+	var credential UserCredential
+	searchResult := db.Where("user_email = ? AND id = ?", email, id).First(&credential)
+	if searchResult.Error != nil {
+		if searchResult.Error == gorm.ErrRecordNotFound {
+			return fmt.Errorf("credential not found")
+		}
+		return searchResult.Error
+	}
+	credential.FriendlyName = friendlyName
+	dbResult := db.Save(credential)
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func GetClients(db *gorm.DB) ([]Client, error) {
+	var clients []Client
+	dbResult := db.Find(&clients)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+	return clients, nil
+}
+
+func GetClient(db *gorm.DB, clientID string) (*Client, error) {
+	var client Client
+	if err := db.Where("client_id = ?", clientID).First(&client).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &client, nil
+}
+
+func CreateClient(db *gorm.DB, client *Client) error {
+	if dbResult := db.Create(client); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
 }

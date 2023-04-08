@@ -24,6 +24,8 @@ import (
 	oauthredisopts "github.com/go-redis/redis/v8"
 	"github.com/go-session/redis/v3"
 	"github.com/go-session/session/v3"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
@@ -48,6 +50,8 @@ func main() {
 
 	cli.ConfigureViper("", "auth", true, "auth")
 
+	isDebug := !viper.GetBool("release")
+
 	dbConn, err := db.GetDatabaseConnection()
 	if err != nil {
 		slog.Error(
@@ -57,8 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Database connection established")
-	dbConn.AutoMigrate(&db.User{})
-	dbConn.AutoMigrate(&db.Client{})
+	db.Migrate(dbConn)
 	slog.Info("Database migration completed")
 
 	ecdsaPrivateKey, err := jwthelper.LoadEcdsaPrivateKey(
@@ -72,12 +75,7 @@ func main() {
 		)
 		os.Exit(1)
 	}
-	slog.Info(
-		"Private key loaded",
-		// slog.String("name", ecdsaPrivateKey.Params().Name),
-		// slog.String("x", ecdsaPrivateKey.X.String()),
-		// slog.String("y", ecdsaPrivateKey.Y.String()),
-	)
+	slog.Info("Private key loaded")
 	jwtGenerator := jwthelper.NewEcKeyJWTGenerator(
 		viper.GetString("key_id"),
 		ecdsaPrivateKey,
@@ -104,7 +102,20 @@ func main() {
 		viper.GetBool("enforce_pkce"),
 	)
 
-	router := authserver.GetRouter(srv, ecdsaPrivateKey)
+	fidoService, err := getFidoService(
+		viper.GetString("domain"),
+		viper.GetString("application_name"),
+		isDebug,
+	)
+	if err != nil {
+		slog.Error(
+			"Unable to create FIDO service",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+
+	router := authserver.GetRouter(srv, ecdsaPrivateKey, fidoService)
 
 	setupSessionManager(
 		redisServer,
@@ -191,4 +202,36 @@ func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
 		session.SetSameSite(http.SameSiteStrictMode),
 		session.SetStore(sessionStore),
 	)
+}
+
+func getFidoService(domain string, displayName string, isDebug bool) (*api.FidoService, error) {
+	config := &webauthn.Config{
+		Debug:         isDebug,
+		RPDisplayName: displayName,
+		RPID:          domain,
+		RPOrigins: []string{
+			fmt.Sprintf("https://%s", domain),
+			fmt.Sprintf("http://%s:%d", domain, viper.GetInt("port")),
+		},
+		// see https://www.w3.org/TR/webauthn/#enum-attestation-convey
+		AttestationPreference: protocol.PreferDirectAttestation,
+		// see https://www.w3.org/TR/webauthn/#dictionary-authenticatorSelection
+		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			// see https://www.w3.org/TR/webauthn/#enum-attachment
+			AuthenticatorAttachment: protocol.CrossPlatform,
+			// see https://www.w3.org/TR/webauthn/#enum-residentKeyRequirement
+			ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
+			// RequireResidentKey: false,
+			// see https://www.w3.org/TR/webauthn/#enumdef-userverificationrequirement
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+	w, err := webauthn.New(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.FidoService{
+		W: w,
+	}, nil
 }

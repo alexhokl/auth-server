@@ -15,6 +15,9 @@ env:
   AUTH_PORT: "{{.PORT}}"
   AUTH_REDIS_SESSION_DB: auth-session
   AUTH_REDIS_TOKEN_DB: auth-token
+  AUTH_APPLICATION_NAME: Auth Server
+  AUTH_DOMAIN: localhost
+  PGPASSWORD: "{{.PASSWORD}}"
 
 tasks:
 
@@ -51,6 +54,7 @@ tasks:
       AUTH_REDIS_HOST: localhost:6379
       AUTH_REDIS_PASSWORD_FILE_PATH: ./keys/redis_password
       GIN_MODE: release
+      AUTH_RELEASE: true
       AUTH_KEY_ID: testing
       AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
@@ -389,3 +393,60 @@ tasks:
     - test -d keys
     cmds:
     - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256" --password-file keys/passphrase --force
+
+  db-list-clients:
+    desc: list clients in database
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which psql)\" ]"
+      msg: psql is not installed
+    - sh: "[ ! -z \"$(which cat)\" ]"
+      msg: cat is not installed
+    vars:
+      CONNECTION_STRING:
+        sh: cat keys/database_connection_string
+    cmds:
+    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM clients"
+
+  db-list-users:
+    desc: list users in database
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which psql)\" ]"
+      msg: psql is not installed
+    - sh: "[ ! -z \"$(which cat)\" ]"
+      msg: cat is not installed
+    vars:
+      CONNECTION_STRING:
+        sh: cat keys/database_connection_string
+    cmds:
+    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM users"
+
+  db-list-user-credentials:
+    desc: list user credentials in database
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which psql)\" ]"
+      msg: psql is not installed
+    - sh: "[ ! -z \"$(which cat)\" ]"
+      msg: cat is not installed
+    vars:
+      CONNECTION_STRING:
+        sh: cat keys/database_connection_string
+    cmds:
+    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM user_credentials"
+
+  db-remove-all-user-credentials:
+    desc: remove all user credentials in database
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which psql)\" ]"
+      msg: psql is not installed
+    - sh: "[ ! -z \"$(which cat)\" ]"
+      msg: cat is not installed
+    vars:
+      CONNECTION_STRING:
+        sh: cat keys/database_connection_string
+    cmds:
+    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials"
+

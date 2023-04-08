@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alexhokl/helper/jsonhelper"
 	"github.com/gin-gonic/gin"
 	session "github.com/go-session/session/v3"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"golang.org/x/exp/slog"
 )
 
 const sessionEmailKey = "email"
 const sessionIsAuthenticatedKey = "is_authenticated"
+const sessionWebAuthnSessionKey = "webauthn_session"
+const sessionRedirectURLKey = "redirect_url"
 
 func getEmailFromSession(c *gin.Context) string {
 	return getEmailFromSessionFromRequest(c.Writer, c.Request)
@@ -22,6 +26,10 @@ func getEmailFromSessionFromRequest(w http.ResponseWriter, r *http.Request) stri
 		return ""
 	}
 	return email.(string)
+}
+
+func getAuthenticatedEmailFromGinContext(c *gin.Context) string {
+	return getAuthenticatedEmail(c.Writer, c.Request)
 }
 
 func getAuthenticatedEmail(w http.ResponseWriter, r *http.Request) string {
@@ -56,25 +64,15 @@ func setAuthenticationToSession(c *gin.Context, isAuthenticated bool) error {
 	if !isKeyExistInSession(c, sessionEmailKey) {
 		return fmt.Errorf("email is not set in session")
 	}
-	store, _ := getSessionStoreFromRequest(c.Writer, c.Request)
-	return setToSession(store, sessionIsAuthenticatedKey, isAuthenticated)
+	return setValuesToSession(c, map[string]interface{}{
+		sessionIsAuthenticatedKey: isAuthenticated,
+	})
 }
-
 
 func setEmailToSession(c *gin.Context, email string) error {
-	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
-	if err != nil {
-		return err
-	}
-	return setToSession(store, sessionEmailKey, email)
-}
-
-func setToSession(store session.Store, key string, value interface{}) error {
-	store.Set(key, value)
-	if err := store.Save(); err != nil {
-		return err
-	}
-	return nil
+	return setValuesToSession(c, map[string]interface{}{
+		sessionEmailKey: email,
+	})
 }
 
 func unsetAuthenticatedEmail(c *gin.Context) error {
@@ -84,6 +82,44 @@ func unsetAuthenticatedEmail(c *gin.Context) error {
 	}
 	store.Delete(sessionEmailKey)
 	store.Delete(sessionIsAuthenticatedKey)
+	if err := store.Save(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setWebAuthnSession(c *gin.Context, webAuthnSession *webauthn.SessionData) error {
+	json, err := jsonhelper.GetJSONString(webAuthnSession)
+	if err != nil {
+		return err
+	}
+	return setValuesToSession(c, map[string]interface{}{
+		sessionWebAuthnSessionKey: json,
+	})
+}
+
+func getWebAuthnSession(c *gin.Context) (*webauthn.SessionData, error) {
+	webAuthnSessionValue, ok := getValueFromSession(c, sessionWebAuthnSessionKey)
+	if !ok {
+		return nil, fmt.Errorf("webauthn session is not set")
+	}
+	sessionValueString, ok := webAuthnSessionValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("webauthn session is not a string")
+	}
+	var session webauthn.SessionData
+	jsonhelper.ParseJSONString(sessionValueString, &session)
+	return &session, nil
+}
+
+func setValuesToSession(c *gin.Context, keyValues map[string]interface{}) error {
+	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
+	if err != nil {
+		return err
+	}
+	for key, value := range keyValues {
+		store.Set(key, value)
+	}
 	if err := store.Save(); err != nil {
 		return err
 	}

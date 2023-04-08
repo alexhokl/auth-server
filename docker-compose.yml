@@ -12,8 +12,9 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - "$PWD/data:/var/lib/postgresql/data"
+      - "$HOME/docker/data:/var/lib/postgresql/data"
       - "$PWD/keys/database_password:/mnt/credentials/database_password:ro"
+      - "$PWD/database/extension.sql:/docker-entrypoint-initdb.d/extension.sql:ro"
 
   redis:
     image: docker.io/bitnami/redis:7.2
