@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/httphelper"
@@ -9,8 +10,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
-
-const cookieEmailKey = "email"
 
 // SignUp creates a new user
 //
@@ -44,9 +43,9 @@ func SignUp(c *gin.Context) {
 	c.Status(http.StatusCreated)
 }
 
-// SignIn signs in a user
+// SignIn starts a sign in session with a user
 //
-//	@Summary	Signs in a user
+//	@Summary	Starts a sign in session with a user
 //	@Tags		user
 //	@Accept		x-www-form-urlencoded
 //	@Produce	json
@@ -61,6 +60,47 @@ func SignIn(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
+	if err := isMaliciousRequest(c); err != nil {
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
+
+	if err := setEmailToSession(c, formValues.Email); err != nil {
+		handleInternalError(c, err, "Unable to save cookie session")
+		return
+	}
+
+	challengeURL, _ := url.Parse("/signin/challenge")
+	challengeQuery := challengeURL.Query()
+	challengeQuery.Add("redirect_url", redirectURL)
+	challengeURL.RawQuery = challengeQuery.Encode()
+
+	c.Redirect(http.StatusFound, challengeURL.String())
+}
+
+// SignInPasswordChallenge signs in a user with a password
+//
+//	@Summary	Signs in a user with a password
+//	@Tags		user
+//	@Accept		x-www-form-urlencoded
+//	@Produce	json
+//	@Param		body	formData	UserSignInWithPasswordRequest	true	"Sign in request"
+//	@Router		/signin/challenge [post]
+func SignInPasswordChallenge(c *gin.Context) {
+	var formValues UserSignInWithPasswordRequest
+	if err := c.ShouldBind(&formValues); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	email := getEmailFromSession(c)
+	if email == "" {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	redirectURL := c.Query(queryParamRedirectURL)
+
 	conn, err := db.GetDatabaseConnection()
 	if err != nil {
 		handleInternalError(c, err, "Unable to connect to database")
@@ -68,14 +108,14 @@ func SignIn(c *gin.Context) {
 	}
 
 	logger := slog.With(
-		slog.String("email", formValues.Email),
+		slog.String("email", email),
 		slog.String(httphelper.HeaderXForwardedFor, c.Request.Header.Get(httphelper.HeaderXForwardedFor)),
 		slog.String(httphelper.HeaderXForwardedHost, c.Request.Header.Get(httphelper.HeaderXForwardedHost)),
 		slog.String(httphelper.HeaderHost, c.Request.Host),
 	)
 
 	var user db.User
-	dbResult := conn.First(&user, "email = ?", formValues.Email)
+	dbResult := conn.First(&user, "email = ?", email)
 	if dbResult.Error != nil {
 		logger.Warn(
 			"Unable to find user",
@@ -90,13 +130,7 @@ func SignIn(c *gin.Context) {
 		return
 	}
 
-	sessionStore, err := getSessionStore(c)
-	if err != nil {
-		handleInternalError(c, err, "Unable to start a cookie session")
-		return
-	}
-	sessionStore.Set(cookieEmailKey, formValues.Email)
-	if err = sessionStore.Save(); err != nil {
+	if err := setAuthenticationToSession(c, true); err != nil {
 		handleInternalError(c, err, "Unable to save cookie session")
 		return
 	}
@@ -117,20 +151,27 @@ func SignIn(c *gin.Context) {
 //	@Produce		json
 //	@Router			/signout [post]
 func SignOut(c *gin.Context) {
-	sessionStore, err := getSessionStore(c)
-	if err != nil {
-		handleInternalError(c, err, "Unable to start a cookie session")
-		return
-	}
-
-	if !isSignedIn(c) {
+	if !isAuthenticated(c) {
 		slog.Info("User is not signed in")
 		c.Status(http.StatusNoContent)
 		return
 	}
 
-	sessionStore.Delete(cookieEmailKey)
-	sessionStore.Flush()
+	if err := unsetAuthenticatedEmail(c); err != nil {
+		handleInternalError(c, err, "Unable to delete cookie session")
+		return
+	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func SignInChallengeUI(c *gin.Context) {
+	c.File("./assets/signin_challenge.html")
+}
+
+func HasEmailInSession(c *gin.Context) {
+	if email := getEmailFromSession(c); email == "" {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 }

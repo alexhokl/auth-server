@@ -132,6 +132,17 @@ paths:
         name: email
         required: true
         type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Starts a sign in session with a user
+      tags:
+      - user
+  /signin/challenge:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
       - example: P@ssw0rd
         in: formData
         name: password
@@ -140,7 +151,7 @@ paths:
       produces:
       - application/json
       responses: {}
-      summary: Signs in a user
+      summary: Signs in a user with a password
       tags:
       - user
   /signout:

@@ -74,9 +74,9 @@ func main() {
 	}
 	slog.Info(
 		"Private key loaded",
-		slog.String("name", ecdsaPrivateKey.Params().Name),
-		slog.String("x", ecdsaPrivateKey.X.String()),
-		slog.String("y", ecdsaPrivateKey.Y.String()),
+		// slog.String("name", ecdsaPrivateKey.Params().Name),
+		// slog.String("x", ecdsaPrivateKey.X.String()),
+		// slog.String("y", ecdsaPrivateKey.Y.String()),
 	)
 	jwtGenerator := jwthelper.NewEcKeyJWTGenerator(
 		viper.GetString("key_id"),

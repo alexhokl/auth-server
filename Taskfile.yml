@@ -80,6 +80,24 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+  test-password:
+    desc: test login with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    cmds:
+    - curl -i -X POST http://{{.SITE}}/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+  test-password-domain:
+    desc: test login with cURL
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
+      msg: environnment variable DOMAIN is not configured
+    cmds:
+    - curl -i -X POST https://$DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
   test-logout:
     desc: test logout with cURL
     silent: true

@@ -9,7 +9,7 @@ import (
 
 func RequiredAuthenticated() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isSignedIn(c) {
+		if !isAuthenticated(c) {
 			url, _ := url.Parse("/signin")
 			if c.Request.Method == http.MethodGet {
 				query := url.Query()

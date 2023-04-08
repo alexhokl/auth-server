@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/server"
-	session "github.com/go-session/session/v3"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 )
@@ -172,16 +171,11 @@ func GetTokenRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *h
 
 func GetUserIdInAuthorizationRequest(w http.ResponseWriter, r *http.Request) (userID string, err error) {
 	// session check has been done in the middleware
-	sessionStore, err := session.Start(r.Context(), w, r)
-	if err != nil {
-		return "", err
-	}
-	emailValue, exist := sessionStore.Get(cookieEmailKey)
-	if !exist {
+	email := getAuthenticatedEmail(w, r)
+	if email == "" {
 		return "", errors.ErrInvalidRequest
 	}
-
-	return emailValue.(string), nil
+	return email, nil
 }
 
 func HandleClientInfoInTokenRequest(r *http.Request) (string, string, error) {

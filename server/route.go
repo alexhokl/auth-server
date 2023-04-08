@@ -20,6 +20,7 @@ func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey) *gin.E
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	r.POST("/signin", api.SignIn)
+	r.POST("/signin/challenge", api.SignInPasswordChallenge)
 	r.POST("/signup", api.SignUp)
 	r.POST("/token", gin.WrapF(api.GetTokenRequestHandler(oauthService)))
 
@@ -35,7 +36,8 @@ func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey) *gin.E
 	clients.PATCH(":client_id", api.UpdateClient)
 	clients.GET("", api.ListClients)
 
-	r.StaticFile("/signin", "./assets/login.html")
+	r.StaticFile("/signin", "./assets/signin.html")
+	r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
 	r.StaticFile("/assets/scripts.js", "./assets/scripts.js")
 	r.StaticFile("/assets/styles.css", "./assets/styles.css")
 

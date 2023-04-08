@@ -19,3 +19,4 @@ data/
 Caddyfile
 redis_password/
 keys/
+cookies.txt

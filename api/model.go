@@ -9,6 +9,9 @@ type UserSignUpRequest struct {
 
 type UserSignInRequest struct {
 	Email    string `form:"email" binding:"required,email" example:"alex@test.com"`
+}
+
+type UserSignInWithPasswordRequest struct {
 	Password string `form:"password" binding:"required" example:"P@ssw0rd"`
 }
 

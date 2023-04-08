@@ -152,7 +152,7 @@ const docTemplate = `{
                 "tags": [
                     "user"
                 ],
-                "summary": "Signs in a user",
+                "summary": "Starts a sign in session with a user",
                 "parameters": [
                     {
                         "type": "string",
@@ -160,7 +160,24 @@ const docTemplate = `{
                         "name": "email",
                         "in": "formData",
                         "required": true
-                    },
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/signin/challenge": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Signs in a user with a password",
+                "parameters": [
                     {
                         "type": "string",
                         "example": "P@ssw0rd",
