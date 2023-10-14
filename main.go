@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,7 +26,6 @@ import (
 	"github.com/go-session/session/v3"
 	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slog"
 	"gorm.io/gorm"
 )
 
@@ -42,7 +42,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	// applies logger to both slog and log
 	slog.SetDefault(logger)
 
