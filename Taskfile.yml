@@ -17,13 +17,16 @@ env:
   AUTH_REDIS_TOKEN_DB: auth-token
 
 tasks:
+
   default:
     cmds:
       - task: build
+
   build:
     desc: Go build without output
     cmds:
     - go build -tags=nomsgpack -o /dev/null
+
   run-debug:
     desc: Run with debug logs
     deps: [up-db, swagger]
@@ -38,6 +41,7 @@ tasks:
       AUTH_WEBFINGER_EMAIL: alex@test.com
     cmds:
     - go run -tags=nomsgpack main.go
+
   run:
     desc: Run without debug logs
     deps: [up-db, swagger]
@@ -54,6 +58,7 @@ tasks:
       AUTH_ENFORCE_PKCE: false
     cmds:
     - go run -tags=nomsgpack main.go
+
   test-signup:
     desc: test signup with xh
     silent: true
@@ -62,6 +67,7 @@ tasks:
       msg: xh is not installed
     cmds:
     - xh post http://{{.SITE}}/signup email={{.LOGIN_NAME}} password={{.LOGIN_PASSWORD}}
+
   test-login:
     desc: test login with cURL
     silent: true
@@ -70,6 +76,7 @@ tasks:
       msg: curl is not installed
     cmds:
     - curl -i -X POST http://{{.SITE}}/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+
   test-login-domain:
     desc: test login with cURL
     silent: true
@@ -80,6 +87,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+
   test-password:
     desc: test login with cURL
     silent: true
@@ -88,6 +96,7 @@ tasks:
       msg: curl is not installed
     cmds:
     - curl -i -X POST http://{{.SITE}}/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+
   test-password-domain:
     desc: test login with cURL
     silent: true
@@ -98,6 +107,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+
   test-logout:
     desc: test logout with cURL
     silent: true
@@ -106,6 +116,7 @@ tasks:
       msg: curl is not installed
     cmds:
     - curl -i -X POST http://{{.SITE}}/signout -b {{.COOKIE_FILE}}
+
   test-logout-domain:
     desc: test logout with cURL
     silent: true
@@ -116,6 +127,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$DOMAIN/signout -b {{.COOKIE_FILE}}
+
   test-authorize:
     desc: test authorization endpoint with cURL
     silent: false
@@ -124,6 +136,7 @@ tasks:
       msg: curl is not installed
     cmds:
     - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
+
   test-authorize-domain:
     desc: test authorization endpoint with cURL
     silent: false
@@ -134,6 +147,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
+
   test-token:
     desc: test authorization and token endpoint with cURL
     silent: false
@@ -151,6 +165,7 @@ tasks:
         sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
     cmds:
     - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
+
   test-token-domain:
     desc: test authorization and token endpoint with cURL
     silent: false
@@ -170,6 +185,7 @@ tasks:
         sh: xh get https://$DOMAIN/.well-known/openid-configuration | jq -r .token_endpoint
     cmds:
       - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
+
   test-step:
     desc: test authorization and token endpoint with step
     silent: false
@@ -187,6 +203,7 @@ tasks:
         sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
     cmds:
       - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --authorization-endpoint {{.AUTH_ENDPOINT}} --token-endpoint {{.TOKEN_ENDPOINT}}
+
   test-step-domain:
     desc: test authorization and token endpoint with step
     silent: false
@@ -197,6 +214,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$DOMAIN
+
   test-client-list:
     desc: test client list with xh
     silent: true
@@ -205,6 +223,7 @@ tasks:
       msg: xh is not installed
     cmds:
     - xh http://{{.SITE}}/clients
+
   test-client-create:
     desc: test client create with xh
     silent: true
@@ -213,6 +232,7 @@ tasks:
       msg: xh is not installed
     cmds:
     - xh post http://{{.SITE}}/clients client_id={{.CLIENT_ID}} client_secret={{.LOGIN_PASSWORD}} redirect_uri={{.REDIRECT_URI}} user_email={{.LOGIN_NAME}}
+
   image:
     desc: Docker build (e.g. task image -- dev)
     silent: true
@@ -221,6 +241,7 @@ tasks:
     - sh: docker version
     cmds:
     - docker build --target production -t docker.io/alexhokl/auth-server:{{ splitArgs .CLI_ARGS | first }} .
+
   up-db:
     desc: Spin up Docker containers of databases
     silent: true
@@ -229,6 +250,7 @@ tasks:
     - sh: docker version
     cmds:
     - docker-compose up db redis -d
+
   up:
     desc: Spin up all Docker containers
     silent: true
@@ -236,6 +258,7 @@ tasks:
     - test -f docker-compose.yml
     cmds:
     - docker-compose up -d
+
   down:
     desc: Stop and remove all Docker containers
     silent: true
@@ -244,6 +267,7 @@ tasks:
     - sh: docker version
     cmds:
     - docker-compose down
+
   caddy:
     desc: Start reverse proxy to port {{.PORT}}
     silent: true
@@ -251,16 +275,19 @@ tasks:
     - test -f Caddyfile
     cmds:
     - caddy run --config Caddyfile
+
   swagger:
     desc: Generate code of Swagger 2.0 documentation
     silent: true
     cmds:
     - swag init
+
   swagger-format:
     desc: Format Swagger comments in Go code
     silent: true
     cmds:
     - swag fmt
+
   swagger-open:
     desc: Open Swagger documentation in a browser
     silent: true
@@ -269,11 +296,13 @@ tasks:
       platforms: [darwin, linux]
     - cmd: explorer http://{{.SITE}}/swagger/index.html
       platforms: [windows]
+
   test:
     desc: Run unit tests
     silent: true
     cmds:
     - go test -v ./...
+
   commit:
     desc: Show the current git commit ID
     silent: true
@@ -282,22 +311,26 @@ tasks:
         sh: git rev-parse --short HEAD
     cmds:
     - echo {{.GIT_COMMIT}}
+
   tidy:
     desc: Tidy up Go modules
     cmds:
     - go mod tidy
+
   list-tokens:
     desc: List keys of tokens stored on Redis
     env:
       REDISCLI_AUTH: "{{.PASSWORD}}"
     cmds:
     - redis-cli -h localhost KEYS auth-token\*
+
   list-sessions:
     desc: List keys of session stored on Redis
     env:
       REDISCLI_AUTH: "{{.PASSWORD}}"
     cmds:
     - redis-cli -h localhost KEYS auth-session\*
+
   # get-token:
   #   desc: Get value of code/token using key of Redis
   #   env:
@@ -308,6 +341,7 @@ tasks:
   #   cmds:
   #   - echo {{.LAST_TOKEN}}
   #   - redis-cli -h localhost GET {{.LAST_TOKEN}}
+
   openid-configuration:
     desc: Shows configuration of OpenID
     silent: true
@@ -316,6 +350,7 @@ tasks:
       msg: xh is not installed
     cmds:
       - xh http://{{.SITE}}/.well-known/openid-configuration
+
   openid-configuration-domain:
     desc: Shows configuration of OpenID
     silent: true
@@ -326,6 +361,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - xh https://$DOMAIN/.well-known/openid-configuration
+
   webfinger-configuration:
     desc: Shows configuration of WebFinger
     silent: true
@@ -334,6 +370,7 @@ tasks:
       msg: xh is not installed
     cmds:
       - xh http://{{.SITE}}/.well-known/webfinger
+
   webfinger-configuration-domain:
     desc: Shows configuration of WebFinger
     silent: true
@@ -344,6 +381,7 @@ tasks:
       msg: environnment variable DOMAIN is not configured
     cmds:
       - xh https://$DOMAIN/.well-known/webfinger
+
   gen-key:
     desc: Generate keys
     interactive: true
