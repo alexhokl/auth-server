@@ -3,7 +3,7 @@ version: '3'
 services:
 
   db:
-    image: docker.io/postgres:15-alpine3.17
+    image: docker.io/postgres:16-alpine3.18
     environment:
       POSTGRES_PASSWORD_FILE: /mnt/credentials/database_password
       POSTGRES_USER: appuser
@@ -16,7 +16,7 @@ services:
       - "$PWD/keys/database_password:/mnt/credentials/database_password:ro"
 
   redis:
-    image: docker.io/bitnami/redis:7.0
+    image: docker.io/bitnami/redis:7.2
     environment:
       REDIS_PASSWORD_FILE: /mnt/redis_password/redis_password
     ports:
