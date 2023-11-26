@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine3.17 AS builder
+FROM golang:1.21-alpine3.18 AS builder
 
 RUN apk update && apk upgrade && \
     apk add --no-cache git build-base
@@ -18,7 +18,7 @@ COPY . .
 
 RUN go install -tags musl
 
-FROM alpine:3.17 AS dev
+FROM alpine:3.18 AS dev
 
 ENV USERNAME=appuser
 ENV UID=1001
