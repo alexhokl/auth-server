@@ -8,9 +8,15 @@ It is based on [go-oauth2/oauth2](https://github.com/go-oauth2/oauth2).
 
 ## Development setup
 
-Note that port `8080` and `8088` will be used.
+### Prerequisite
+
+```sh
+go install github.com/swaggo/swag/cmd/swag@latest
+```
 
 ### Using localhost
+
+Note that port `8080` and `8088` will be used.
 
 To setup the API and its databases
 
@@ -30,10 +36,15 @@ To test sign-in and getting access token
 
 ```sh
 task test-login
+task test-password
 task test-token
 ```
 
 ### Using MagicDNS of Tailscale and Caddy
+
+Assuming the domain is `node-name.some-name.ts.net`.
+
+Set environment variable `AUTH_DOMAIN` to `node-name.some-name.ts.net`.
 
 To setup the API and its databases
 
