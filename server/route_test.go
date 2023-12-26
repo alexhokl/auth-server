@@ -98,5 +98,5 @@ func TestSwaggerJson(t *testing.T) {
 func getRouter() *gin.Engine {
 	manager := manage.NewDefaultManager()
 	srv := oauthserver.NewDefaultServer(manager)
-	return server.GetRouter(srv, nil)
+	return server.GetRouter(srv, nil, nil, true)
 }

@@ -11,7 +11,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService) *gin.Engine {
+func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -45,14 +45,16 @@ func GetRouter(oauthService *server.Server, privateKey *ecdsa.PrivateKey, fidoSe
 	clients.PATCH(":client_id", api.UpdateClient)
 	clients.GET("", api.ListClients)
 
-	r.StaticFile("/signin", "./assets/signin.html")
-	r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
-	r.StaticFile("/assets/signin.js", "./assets/signin.js")
-	r.StaticFile("/assets/styles.css", "./assets/styles.css")
-	r.StaticFile("/assets/authenticated.js", "./assets/authenticated.js")
-	r.StaticFile("/assets/http.js", "./assets/http.js")
-	r.GET("/authenticated", api.RequiredAuthenticated(), api.AuthenticatedUI)
-	r.StaticFile("/", "./assets/home.html")
+	if enableFrontendEndpoints {
+		r.StaticFile("/signin", "./assets/signin.html")
+		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
+		r.StaticFile("/assets/signin.js", "./assets/signin.js")
+		r.StaticFile("/assets/styles.css", "./assets/styles.css")
+		r.StaticFile("/assets/authenticated.js", "./assets/authenticated.js")
+		r.StaticFile("/assets/http.js", "./assets/http.js")
+		r.GET("/authenticated", api.RequiredAuthenticated(), api.AuthenticatedUI)
+		r.StaticFile("/", "./assets/home.html")
+	}
 
 	return r
 }

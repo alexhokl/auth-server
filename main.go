@@ -115,7 +115,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := authserver.GetRouter(srv, ecdsaPrivateKey, fidoService)
+	router := authserver.GetRouter(srv, ecdsaPrivateKey, fidoService, viper.GetBool("frontend_endpoints"))
 
 	setupSessionManager(
 		redisServer,

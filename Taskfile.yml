@@ -42,6 +42,7 @@ tasks:
       AUTH_PRIVATE_KEY_PATH: ./keys/ecdsa.key
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
       AUTH_WEBFINGER_EMAIL: alex@test.com
+      AUTH_FRONTEND_ENDPOINTS: true
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -60,6 +61,7 @@ tasks:
       AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: ./keys/passphrase
       AUTH_WEBFINGER_EMAIL: alex@test.com
       AUTH_ENFORCE_PKCE: false
+      AUTH_FRONTEND_ENDPOINTS: true
     cmds:
     - go run -tags=nomsgpack main.go
 
