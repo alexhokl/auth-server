@@ -83,10 +83,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+    - curl -i -X POST https://$AUTH_DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
 
   test-password:
     desc: test login with cURL
@@ -103,10 +103,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+    - curl -i -X POST https://$AUTH_DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
 
   test-logout:
     desc: test logout with cURL
@@ -123,10 +123,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$DOMAIN/signout -b {{.COOKIE_FILE}}
+    - curl -i -X POST https://$AUTH_DOMAIN/signout -b {{.COOKIE_FILE}}
 
   test-authorize:
     desc: test authorization endpoint with cURL
@@ -143,10 +143,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-      - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
+      - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$AUTH_DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
 
   test-token:
     desc: test authorization and token endpoint with cURL
@@ -176,13 +176,13 @@ tasks:
       msg: grep is not installed
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     vars:
       AUTHORIZATION_CODE:
-        sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep -i Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
+        sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$AUTH_DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep -i Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
       TOKEN_ENDPOINT:
-        sh: xh get https://$DOMAIN/.well-known/openid-configuration | jq -r .token_endpoint
+        sh: xh get https://$AUTH_DOMAIN/.well-known/openid-configuration | jq -r .token_endpoint
     cmds:
       - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
 
@@ -210,10 +210,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which step)\" ]"
       msg: step is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-      - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$DOMAIN
+      - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$AUTH_DOMAIN
 
   test-client-list:
     desc: test client list with xh
@@ -357,10 +357,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which xh)\" ]"
       msg: xh is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-      - xh https://$DOMAIN/.well-known/openid-configuration
+      - xh https://$AUTH_DOMAIN/.well-known/openid-configuration
 
   webfinger-configuration:
     desc: Shows configuration of WebFinger
@@ -377,10 +377,10 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which xh)\" ]"
       msg: xh is not installed
-    - sh: "[ ! -z \"$(echo $DOMAIN)\" ]"
-      msg: environnment variable DOMAIN is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-      - xh https://$DOMAIN/.well-known/webfinger
+      - xh https://$AUTH_DOMAIN/.well-known/webfinger
 
   gen-key:
     desc: Generate keys
