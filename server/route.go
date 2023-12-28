@@ -54,8 +54,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	fidoGroup.POST("/signin/challenge", fidoService.LoginChallenge)
 	fidoGroup.POST("/signin", fidoService.Login)
 	fidoGroup.GET("/credentials", api.RequiredAuthenticated(), fidoService.GetCredentials)
-	fidoGroup.DELETE("/credential/:id", api.RequiredAuthenticated(), fidoService.DeleteCredential)
-	fidoGroup.PATCH("/credential/:id", api.RequiredAuthenticated(), fidoService.UpdateCredential)
+	fidoGroup.DELETE("/credentials/:id", api.RequiredAuthenticated(), fidoService.DeleteCredential)
+	fidoGroup.PATCH("/credentials/:id", api.RequiredAuthenticated(), fidoService.UpdateCredential)
 
 	clients := r.Group("/clients")
 	clients.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())

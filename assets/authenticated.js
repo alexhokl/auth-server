@@ -1,7 +1,6 @@
 const registerUrl = '/fido/register/challenge';
 const registerCallbackUrl = '/fido/register';
 const credentialsUrl = '/fido/credentials';
-const credentialUrl = '/fido/credential';
 
 const isWebAuthnSupported = async () => {
   if (window.PublicKeyCredential &&
@@ -85,7 +84,7 @@ const writeKeyTable = (keys) => {
 };
 
 const deleteKey = async (id) => {
-  await deleteResource(credentialUrl, base64ToBase64Url(id));
+  await deleteResource(credentialsUrl, base64ToBase64Url(id));
   const keys = await getKeys();
   writeKeyTable(keys);
 }
@@ -96,7 +95,7 @@ const updateKey = async (id, nameElementId) => {
     name: name,
   };
 
-  await patch(credentialUrl, base64ToBase64Url(id), params);
+  await patch(credentialsUrl, base64ToBase64Url(id), params);
   const keys = await getKeys();
   writeKeyTable(keys);
 }
