@@ -28,13 +28,13 @@ func SignUp(c *gin.Context) {
 
 	user := req.ToUser()
 
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
-	if err := db.CreateUser(conn, user); err != nil {
+	if err := db.CreateUser(dbConn, user); err != nil {
 		handleInternalError(c, err, "Unable to create user")
 		return
 	}
@@ -100,9 +100,9 @@ func SignInPasswordChallenge(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -110,7 +110,7 @@ func SignInPasswordChallenge(c *gin.Context) {
 		slog.String("email", email),
 	)
 
-	user, err := db.GetUser(conn, email)
+	user, err := db.GetUser(dbConn, email)
 	if err != nil {
 		logger.Warn(
 			"Unable to find user",

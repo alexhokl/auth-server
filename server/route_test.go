@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/auth-server/server"
 	"github.com/gin-gonic/gin"
-	"github.com/go-oauth2/oauth2/v4/manage"
-	oauthserver "github.com/go-oauth2/oauth2/v4/server"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +23,7 @@ import (
 // }
 //
 func TestSignUp(t *testing.T) {
-	router := getRouter()
+	router, _ := getRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/signup", nil)
 	router.ServeHTTP(w, req)
@@ -37,7 +37,7 @@ func TestSignUp(t *testing.T) {
 }
 
 func TestSignIn(t *testing.T) {
-	router := getRouter()
+	router, _ := getRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/signin", nil)
 	router.ServeHTTP(w, req)
@@ -47,7 +47,7 @@ func TestSignIn(t *testing.T) {
 }
 
 func TestSignOut(t *testing.T) {
-	router := getRouter()
+	router, _ := getRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/signout", nil)
 	router.ServeHTTP(w, req)
@@ -57,37 +57,40 @@ func TestSignOut(t *testing.T) {
 }
 
 func TestClientCreate(t *testing.T) {
-	router := getRouter()
+	router, _ := getRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/clients", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "", w.Body.String())
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	// assert.Equal(t, "", w.Body.String())
 }
 
 func TestClientPatch(t *testing.T) {
-	router := getRouter()
+	router, dbMock := getRouter()
+	dbMock.ExpectQuery("SELECT (.+) FROM \"clients\"").WillReturnRows(sqlmock.NewRows([]string{"id", "secret", "redirect_uri", "is_public", "user_email"}))
+	dbMock.ExpectExec("UPDATE \"clients\" SET (.+) WHERE \"clients\".\"id\" = (.+)").WillReturnResult(sqlmock.NewResult(1, 1))
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPatch, "/clients/web", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, "", w.Body.String())
 }
 
 func TestClientList(t *testing.T) {
-	router := getRouter()
+	router, dbMock := getRouter()
+	dbMock.ExpectQuery("SELECT (.+) FROM \"clients\"").WillReturnRows(sqlmock.NewRows([]string{"id", "secret", "redirect_uri", "is_public", "user_email"}))
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/clients", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "", w.Body.String())
+	assert.Equal(t, "[]", w.Body.String())
 }
 
 func TestSwaggerJson(t *testing.T) {
-	router := getRouter()
+	router, _ := getRouter()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/swagger/doc.json", nil)
 	router.ServeHTTP(w, req)
@@ -95,8 +98,12 @@ func TestSwaggerJson(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func getRouter() *gin.Engine {
-	manager := manage.NewDefaultManager()
-	srv := oauthserver.NewDefaultServer(manager)
-	return server.GetRouter(srv, nil, nil, true)
+func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
+	mockDB, mock, _ := sqlmock.New()
+	dialector := db.GetDatabaseDialectorFromConnection(mockDB)
+	router, err := server.GetRouter(dialector, nil, "", "", "", "", false, nil, nil, true)
+	if err != nil {
+		panic(err)
+	}
+	return router, mock
 }

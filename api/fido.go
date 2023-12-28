@@ -32,9 +32,9 @@ func NewFidoService(w *webauthn.WebAuthn) *FidoService {
 //	@Produce		json
 //	@Router			/fido/register/challenge [post]
 func (s *FidoService) RegisterChallenge(c *gin.Context) {
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Failed to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -88,9 +88,9 @@ func (s *FidoService) RegisterChallenge(c *gin.Context) {
 //	@Param			body	body	DummyCredentialCreationData	true	"Credential creation request"
 //	@Router			/fido/register [post]
 func (s *FidoService) Register(c *gin.Context) {
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Failed to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -184,9 +184,9 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -194,7 +194,7 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 		slog.String("email", email),
 	)
 
-	user, err := db.GetUser(conn, email)
+	user, err := db.GetUser(dbConn, email)
 	if err != nil {
 		logger.Warn(
 			"Unable to find user",
@@ -243,9 +243,9 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 //	@Param			body	body	DummyCredentialAssertionData	true	"Credential assertion request"
 //	@Router			/fido/signin [post]
 func (s *FidoService) Login(c *gin.Context) {
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Failed to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -332,12 +332,12 @@ func (s *FidoService) Login(c *gin.Context) {
 
 func (s *FidoService) GetCredentials(c *gin.Context) {
 	email := getAuthenticatedEmailFromGinContext(c)
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
-	credentials, err := db.GetCredentials(conn, email)
+	credentials, err := db.GetCredentials(dbConn, email)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get credentials")
 		return
@@ -355,9 +355,9 @@ func (s *FidoService) GetCredentials(c *gin.Context) {
 
 func (s *FidoService) DeleteCredential(c *gin.Context) {
 	email := getAuthenticatedEmailFromGinContext(c)
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 	id := c.Param("id")
@@ -368,7 +368,7 @@ func (s *FidoService) DeleteCredential(c *gin.Context) {
 		return
 	}
 
-	if err := db.DeleteCredential(conn, email, idBytes); err != nil {
+	if err := db.DeleteCredential(dbConn, email, idBytes); err != nil {
 		handleInternalError(c, err, "Unable to delete credential")
 		return
 	}
@@ -377,9 +377,9 @@ func (s *FidoService) DeleteCredential(c *gin.Context) {
 
 func (s *FidoService) UpdateCredential(c *gin.Context) {
 	email := getAuthenticatedEmailFromGinContext(c)
-	conn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 	id := c.Param("id")
@@ -394,7 +394,7 @@ func (s *FidoService) UpdateCredential(c *gin.Context) {
 		handleInternalError(c, err, "Unable to bind JSON")
 		return
 	}
-	if err := db.UpdateCredential(conn, email, idBytes, req.Name); err != nil {
+	if err := db.UpdateCredential(dbConn, email, idBytes, req.Name); err != nil {
 		if err == gorm.ErrDuplicatedKey {
 			handleBadRequest(c, err, "Name already exists")
 			return

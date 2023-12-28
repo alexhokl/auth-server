@@ -28,7 +28,11 @@ func handleUnexpectedError(c *gin.Context, err error) {
 }
 
 func handleInternalError(c *gin.Context, err error, internalErrorMessage string) {
-	slog.Error(internalErrorMessage, slog.String("error", err.Error()))
+	if err == nil {
+		slog.Error(internalErrorMessage)
+	} else {
+		slog.Error(internalErrorMessage, slog.String("error", err.Error()))
+	}
 	c.AbortWithStatus(http.StatusInternalServerError)
 }
 

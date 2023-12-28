@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/bytedance/gopkg v0.0.0-20221122125632-68358b8ecec6 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect

@@ -26,9 +26,9 @@ func CreateClient(c *gin.Context) {
 		return
 	}
 
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
@@ -87,9 +87,9 @@ func CreateClient(c *gin.Context) {
 //	@Produce		json
 //	@Router			/clients/ [patch]
 func UpdateClient(c *gin.Context) {
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 	client, err := db.GetClient(dbConn, c.Param("client_id"))
@@ -142,9 +142,9 @@ func UpdateClient(c *gin.Context) {
 //	@Produce	json
 //	@Router		/clients/ [get]
 func ListClients(c *gin.Context) {
-	dbConn, err := db.GetDatabaseConnection()
-	if err != nil {
-		handleInternalError(c, err, "Unable to connect to database")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 

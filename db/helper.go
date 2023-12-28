@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/alexhokl/helper/iohelper"
@@ -11,7 +12,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func GetDatabaseConnection() (*gorm.DB, error) {
+func GetDatabaseDailector() (gorm.Dialector, error) {
 	path := viper.GetString("database_connection_string_file_path")
 	if path == "" {
 		return nil, fmt.Errorf("file path to database connection string is not set")
@@ -24,7 +25,18 @@ func GetDatabaseConnection() (*gorm.DB, error) {
 		return nil, fmt.Errorf("database connection string is empty")
 	}
 
-	conn, err := gorm.Open(postgres.Open(connectionString), &gorm.Config{})
+	return postgres.Open(connectionString), nil
+}
+
+func GetDatabaseDialectorFromConnection(conn *sql.DB) gorm.Dialector {
+	return postgres.New(postgres.Config{
+		Conn: conn,
+		DriverName: "postgres",
+	})
+}
+
+func GetDatabaseConnection(dialector gorm.Dialector) (*gorm.DB, error) {
+	conn, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}

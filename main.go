@@ -14,21 +14,12 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/auth-server/jwthelper"
 	authserver "github.com/alexhokl/auth-server/server"
-	"github.com/alexhokl/auth-server/store"
 	"github.com/alexhokl/helper/cli"
 	"github.com/alexhokl/helper/iohelper"
-	"github.com/go-oauth2/oauth2/v4"
-	"github.com/go-oauth2/oauth2/v4/manage"
-	"github.com/go-oauth2/oauth2/v4/server"
-	oauthredis "github.com/go-oauth2/redis/v4"
-	oauthredisopts "github.com/go-redis/redis/v8"
-	"github.com/go-session/redis/v3"
-	"github.com/go-session/session/v3"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
-	"gorm.io/gorm"
 )
 
 //	@title			Auth Server API
@@ -52,7 +43,16 @@ func main() {
 
 	isDebug := !viper.GetBool("release")
 
-	dbConn, err := db.GetDatabaseConnection()
+	dialector, err := db.GetDatabaseDailector()
+	if err != nil {
+		slog.Error(
+			"Unable to get database dailector",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+
+	dbConn, err := db.GetDatabaseConnection(dialector)
 	if err != nil {
 		slog.Error(
 			"Unable to connect to database",
@@ -93,15 +93,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := getOAuthService(
-		dbConn,
-		jwtGenerator,
-		redisServer,
-		redisPassword,
-		viper.GetString("redis_session_db"),
-		viper.GetBool("enforce_pkce"),
-	)
-
 	fidoService, err := getFidoService(
 		viper.GetString("domain"),
 		viper.GetString("application_name"),
@@ -115,13 +106,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := authserver.GetRouter(srv, ecdsaPrivateKey, fidoService, viper.GetBool("frontend_endpoints"))
-
-	setupSessionManager(
+	router, err := authserver.GetRouter(
+		dialector,
+		jwtGenerator,
 		redisServer,
 		redisPassword,
+		viper.GetString("redis_session_db"),
 		viper.GetString("redis_token_db"),
+		viper.GetBool("enforce_pkce"),
+		ecdsaPrivateKey,
+		fidoService,
+		viper.GetBool("frontend_endpoints"),
 	)
+	if err != nil {
+		slog.Error(
+			"Unable to create router",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", viper.GetInt("port")),
@@ -152,56 +155,6 @@ func setDefaultSettings() {
 	viper.SetDefault("port", defaultPort)
 	viper.SetDefault("shutdown_timeout", 5*time.Second)
 	viper.SetDefault("enforce_pkce", true)
-}
-
-func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisDatabaseName string, enforcePKCE bool) *server.Server {
-	clientStore := store.NewClientStore(dbConn)
-	tokenStore := oauthredis.NewRedisStore(
-		&oauthredisopts.Options{
-			Addr:     redisHost,
-			Password: redisPassword,
-		},
-		redisDatabaseName,
-	)
-
-	manager := manage.NewDefaultManager()
-	manager.MapClientStorage(clientStore)
-	manager.MapTokenStorage(tokenStore)
-	manager.MapAccessGenerate(tokenGenerator)
-
-	srv := server.NewDefaultServer(manager)
-	srv.Config.ForcePKCE = enforcePKCE
-	srv.SetAllowGetAccessRequest(false)
-	srv.SetAllowedResponseType(
-		oauth2.Code,
-		oauth2.Token,
-	)
-	srv.SetAllowedGrantType(
-		oauth2.AuthorizationCode,
-		oauth2.ClientCredentials,
-		oauth2.Refreshing,
-	)
-
-	srv.SetInternalErrorHandler(api.HandleInternalError)
-	// srv.SetResponseErrorHandler(api.HandleErrorResponse)
-	srv.SetUserAuthorizationHandler(api.GetUserIdInAuthorizationRequest)
-	srv.SetClientInfoHandler(api.HandleClientInfoInTokenRequest)
-
-	return srv
-}
-
-func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
-	sessionStore := redis.NewRedisStore(
-		&redis.Options{
-			Addr:     redisHost,
-			Password: redisPassword,
-		},
-		redisDatabaseName,
-	)
-	session.InitManager(
-		session.SetSameSite(http.SameSiteStrictMode),
-		session.SetStore(sessionStore),
-	)
 }
 
 func getFidoService(domain string, displayName string, isDebug bool) (*api.FidoService, error) {
