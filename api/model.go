@@ -29,6 +29,12 @@ type ClientCreateRequest struct {
 	UserEmail    string `json:"user_email" binding:"required" example:"alex@test.com"`
 }
 
+type ClientUpdateRequest struct {
+	ClientSecret *string `json:"client_secret,omitempty" example:"P@ssw0rd"`
+	RedirectUri  *string `json:"redirect_uri,omitempty" example:"http://localhost:8080/callback"`
+	UserEmail    *string `json:"user_email,omitempty" example:"alex@test.com"`
+}
+
 type ClientResponse struct {
 	ClientID    string `json:"client_id"`
 	RedirectUri string `json:"redirect_uri"`

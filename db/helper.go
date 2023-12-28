@@ -175,3 +175,10 @@ func CreateClient(db *gorm.DB, client *Client) error {
 	}
 	return nil
 }
+
+func UpdateClient(db *gorm.DB, client *Client) error {
+	if dbResult := db.Save(client); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}

@@ -87,7 +87,52 @@ func CreateClient(c *gin.Context) {
 //	@Produce		json
 //	@Router			/clients/ [patch]
 func UpdateClient(c *gin.Context) {
-	// TODO: Implement
+	dbConn, err := db.GetDatabaseConnection()
+	if err != nil {
+		handleInternalError(c, err, "Unable to connect to database")
+		return
+	}
+	client, err := db.GetClient(dbConn, c.Param("client_id"))
+	if err != nil {
+		slog.Warn(
+			"Error in retrieving client",
+			slog.String("client_id", c.Param("client_id")),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	var req ClientUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.ClientSecret != nil {
+		client.ClientSecret = *req.ClientSecret
+	}
+	if req.RedirectUri != nil {
+		client.RedirectURI = *req.RedirectUri
+	}
+	if req.UserEmail != nil {
+		client.UserEmail = *req.UserEmail
+	}
+	if err := db.UpdateClient(dbConn, client); err != nil {
+		slog.Error(
+			"Error in updating client",
+			slog.String("client_id", client.ClientID),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	c.JSON(http.StatusOK, ClientResponse{
+		ClientID:    client.ClientID,
+		RedirectUri: client.RedirectURI,
+		UserEmail:   client.UserEmail,
+	})
 }
 
 // ListClients lists clients
