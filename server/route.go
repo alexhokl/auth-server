@@ -63,6 +63,10 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	clients.PATCH(":client_id", api.UpdateClient)
 	clients.GET("", api.ListClients)
 
+	users := r.Group("/users")
+	users.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())
+	users.GET("", api.ListUsers)
+
 	if enableFrontendEndpoints {
 		r.StaticFile("/signin", "./assets/signin.html")
 		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)

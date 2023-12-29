@@ -187,3 +187,40 @@ func HasEmailInSession(c *gin.Context) {
 		return
 	}
 }
+
+func ListUsers(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	users, err := db.ListUsers(dbConn)
+	if err != nil {
+		handleInternalError(c, err, "Unable to list users")
+		return
+	}
+
+	var viewModels []UserResponse
+	for _, user := range users {
+		m := UserResponse{
+			Email:       user.Email,
+			DisplayName: user.DisplayName,
+			Roles:       []string{},
+			Credentials: []CredentialInfo{},
+		}
+		for _, role := range user.Roles {
+			m.Roles = append(m.Roles, role.Name)
+		}
+		for _, credential := range user.Credentials {
+			m.Credentials = append(m.Credentials, CredentialInfo{
+				ID:           credential.ID,
+				Name: credential.FriendlyName,
+			})
+		}
+
+		viewModels = append(viewModels, m)
+	}
+
+	c.JSON(http.StatusOK, viewModels)
+}

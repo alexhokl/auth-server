@@ -223,6 +223,14 @@ tasks:
     cmds:
       - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$AUTH_DOMAIN
 
+  test-list-users:
+    desc: test user list with curl
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    cmd: curl -i http://{{.SITE}}/users -b {{.COOKIE_FILE}}
+
   test-client-list:
     desc: test client list with curl
     silent: true

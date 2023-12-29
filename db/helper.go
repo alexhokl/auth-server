@@ -49,6 +49,18 @@ func Migrate(db *gorm.DB) {
 	db.AutoMigrate(&UserCredential{})
 }
 
+func ListUsers(db *gorm.DB) ([]User, error) {
+	var users []User
+	dbResult := db.Preload("Roles").Preload("Credentials").Find(&users)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return users, nil
+		}
+		return nil, dbResult.Error
+	}
+	return users, nil
+}
+
 func GetUser(db *gorm.DB, email string) (*User, error) {
 	var user User
 	dbResult := db.Preload(clause.Associations).First(&user, "email = ?", email)

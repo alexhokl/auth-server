@@ -22,6 +22,13 @@ type PasswordChangeRequest struct {
 	NewPassword string `json:"new_password" binding:"required" example:"NewP@ssw0rd"`
 }
 
+type UserResponse struct {
+	Email       string           `json:"email"`
+	DisplayName string           `json:"display_name"`
+	Roles       []string         `json:"roles"`
+	Credentials []CredentialInfo `json:"credentials"`
+}
+
 type ClientCreateRequest struct {
 	ClientID     string `json:"client_id" binding:"required" example:"cli"`
 	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
