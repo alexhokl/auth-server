@@ -51,7 +51,6 @@ task run
 To create user and OAuth client
 
 ```sh
-task test-signup
 task test-client-create
 ```
 
@@ -100,7 +99,6 @@ task caddy
 To create user and OAuth client
 
 ```sh
-task test-signup
 task test-client-create
 ```
 
