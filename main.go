@@ -64,6 +64,54 @@ func main() {
 	db.Migrate(dbConn)
 	slog.Info("Database migration completed")
 
+	ok, err := db.HasUsers(dbConn)
+	if err != nil {
+		slog.Error(
+			"Unable to check if there are any existing users",
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
+	if ok {
+		slog.Info("Skipping user import as database has existing users")
+	} else {
+		importFilename := viper.GetString("seed_users_file_path")
+		if importFilename == "" {
+			slog.Error(
+				"Unable to import seed users as file path is not set",
+			)
+			os.Exit(1)
+		}
+		seedUsers, seedRoles, err := api.GetSeedUsers(importFilename)
+		if err != nil {
+			slog.Error(
+				"Unable to read seed users",
+				slog.String("error", err.Error()),
+			)
+			os.Exit(1)
+		}
+		for _, r := range seedRoles {
+			if err := db.CreateRole(dbConn, &r); err != nil {
+				slog.Error(
+					"Unable to create role",
+					slog.String("error", err.Error()),
+					slog.String("name", r.Name),
+				)
+				os.Exit(1)
+			}
+		}
+		for _, u := range seedUsers {
+			if err := db.CreateUser(dbConn, &u); err != nil {
+				slog.Error(
+					"Unable to create user",
+					slog.String("error", err.Error()),
+					slog.String("email", u.Email),
+				)
+				os.Exit(1)
+			}
+		}
+	}
+
 	ecdsaPrivateKey, err := jwthelper.LoadEcdsaPrivateKey(
 		viper.GetString("private_key_path"),
 		viper.GetString("private_key_password_file_path"),

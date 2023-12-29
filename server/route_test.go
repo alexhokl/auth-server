@@ -62,7 +62,7 @@ func TestClientCreate(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, "/clients", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 	// assert.Equal(t, "", w.Body.String())
 }
 
@@ -74,8 +74,8 @@ func TestClientPatch(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPatch, "/clients/web", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Equal(t, "", w.Body.String())
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	// assert.Equal(t, "", w.Body.String())
 }
 
 func TestClientList(t *testing.T) {
@@ -85,8 +85,8 @@ func TestClientList(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/clients", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "[]", w.Body.String())
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	// assert.Equal(t, "", w.Body.String())
 }
 
 func TestSwaggerJson(t *testing.T) {

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/alexhokl/auth-server/db"
@@ -10,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"golang.org/x/exp/slog"
 	"gorm.io/gorm"
 )
 

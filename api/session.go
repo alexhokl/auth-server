@@ -2,13 +2,13 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/alexhokl/helper/jsonhelper"
 	"github.com/gin-gonic/gin"
 	session "github.com/go-session/session/v3"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"golang.org/x/exp/slog"
 )
 
 const sessionEmailKey = "email"

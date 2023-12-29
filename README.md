@@ -6,6 +6,29 @@ It is based on [go-oauth2/oauth2](https://github.com/go-oauth2/oauth2).
 
 :warning: This is a work in progress and not ready for production yet :warning:
 
+## Setting up server
+
+Users with administrative privileges can be seeded by starting this server with
+an empty database (technically empty database table `users`). The server will
+read the file configured via environment variable `AUTH_SEED_USERS_FILE_PATH`.
+
+The file is in JSON format and the schema can be found in
+[ImportUser](https://github.com/alexhokl/auth-server/blob/c7a770df8026e77f4163df6a9a9d40db3b76a29e/api/model.go#L118). The following is an example of content of the file.
+
+```json
+[
+  {
+    "email": "user@test.com",
+    "password": "password",
+    "display_name": "Test User",
+    "roles": ["admin"]
+  }
+]
+```
+
+Note that setting of role `admin` is important to allow the user to act as an
+administrator to configure other aspects (such as OAuth clients) of this server.
+
 ## Development setup
 
 ### Prerequisite

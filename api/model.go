@@ -115,6 +115,13 @@ type CredentialInfo struct {
 	Name string `json:"name"`
 }
 
+type ImportUser struct {
+	Email       string   `json:"email"`
+	Password    string   `json:"password"`
+	DisplayName string   `json:"display_name"`
+	Roles       []string `json:"roles"`
+}
+
 func (req *UserSignUpRequest) ToUser() *db.User {
 	return &db.User{
 		Email:        req.Email,

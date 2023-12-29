@@ -11,6 +11,7 @@ type User struct {
 	DisplayName    string    `gorm:""`
 	WebAuthnUserID uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
 	Credentials    []UserCredential
+	Roles          []Role `gorm:"many2many:user_roles;"`
 }
 
 type Client struct {
@@ -38,4 +39,15 @@ type UserCredential struct {
 	UserEmail       string                            `gorm:"uniqueIndex:idx_uniq_credential_name,priority:1;not null"`
 	FriendlyName    string                            `gorm:"uniqueIndex:idx_uniq_credential_name,priority:2;not null"`
 	User            User                              `gorm:"foreignKey:UserEmail"`
+}
+
+type Role struct {
+	Name string `gorm:"primary_key;unique;not null"`
+}
+
+type UserRole struct {
+	UserEmail string `gorm:"uniqueIndex:idx_uniq_user_role,priority:1;not null"`
+	RoleName  string `gorm:"uniqueIndex:idx_uniq_user_role,priority:2;not null"`
+	User      User   `gorm:"foreignKey:UserEmail"`
+	Role      Role   `gorm:"foreignKey:RoleName"`
 }

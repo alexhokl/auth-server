@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/exp/slog"
 )
 
 const queryParamRedirectURL = "redirect_url"

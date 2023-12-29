@@ -20,3 +20,4 @@ Caddyfile
 redis_password/
 keys/
 cookies.txt
+import_users.json

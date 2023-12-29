@@ -63,6 +63,13 @@ func getDatabaseConnectionFromContext(c *gin.Context) (*gorm.DB, bool) {
 }
 
 func isAdmin(c *gin.Context) bool {
-	// TODO: implement
-	return true
+	if !isAuthenticated(c) {
+		return false
+	}
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		return false
+	}
+	email := getEmailFromSession(c)
+	return db.HasRole(dbConn, email, "admin")
 }

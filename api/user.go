@@ -1,13 +1,13 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/exp/slog"
 )
 
 // SignUp creates a new user

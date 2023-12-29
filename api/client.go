@@ -2,12 +2,12 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/auth-server/store"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 )
 
 // CreateClient adds a client

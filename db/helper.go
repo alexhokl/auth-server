@@ -61,6 +61,15 @@ func GetUser(db *gorm.DB, email string) (*User, error) {
 	return &user, nil
 }
 
+func HasUsers(db *gorm.DB) (bool, error) {
+	var count int64
+	dbResult := db.Model(&User{}).Count(&count)
+	if dbResult.Error != nil {
+		return false, dbResult.Error
+	}
+	return count > 0, nil
+}
+
 func CreateUser(db *gorm.DB, user *User) error {
 	if dbResult := db.Create(user); dbResult.Error != nil {
 		return dbResult.Error
@@ -156,6 +165,22 @@ func UpdateCredential(db *gorm.DB, email string, id []byte, friendlyName string)
 		return dbResult.Error
 	}
 	return nil
+}
+
+func CreateRole(db *gorm.DB, role *Role) error {
+	if dbResult := db.Create(role); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func HasRole(db *gorm.DB, email string, name string) bool {
+	var count int64
+	dbResult := db.Model(&UserRole{}).Where("user_email = ? AND role_name = ?", email, name).Count(&count)
+	if dbResult.Error != nil {
+		return false
+	}
+	return count > 0
 }
 
 func GetClients(db *gorm.DB) ([]Client, error) {

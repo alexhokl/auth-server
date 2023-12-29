@@ -3,6 +3,7 @@ module github.com/alexhokl/auth-server
 go 1.21
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.1
 	github.com/go-oauth2/oauth2/v4 v4.5.2
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/go-session/redis/v3 v3.1.0
@@ -16,7 +17,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/bytedance/gopkg v0.0.0-20221122125632-68358b8ecec6 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.17.0
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/alexhokl/helper/httphelper"
@@ -11,7 +12,6 @@ import (
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slog"
 )
 
 const ContentTypeJrdJSON = "application/jrd+json"
