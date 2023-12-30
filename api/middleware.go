@@ -48,6 +48,31 @@ func WithDatabaseConnection(dialector gorm.Dialector) gin.HandlerFunc {
 	}
 }
 
+func WithExpirationPeriod(expirationPeriod int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("expiration_period", expirationPeriod)
+		c.Next()
+	}
+}
+
+func WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("resend_api_key", resendAPIKey)
+		c.Set("mail_from", mailFrom)
+		c.Set("mail_from_name", mailFromName)
+		c.Set("confirmation_mail_subject", confirmationMailSubject)
+
+		c.Next()
+	}
+}
+
+func WithDomain(domain string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("domain", domain)
+		c.Next()
+	}
+}
+
 func getDatabaseConnectionFromContext(c *gin.Context) (*gorm.DB, bool) {
 	dbConnObj, ok := c.Get("db")
 	if !ok {

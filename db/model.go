@@ -12,6 +12,7 @@ type User struct {
 	WebAuthnUserID uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
 	Credentials    []UserCredential
 	Roles          []Role `gorm:"many2many:user_roles;"`
+	IsEnabled      bool   `gorm:"default:false;not null"`
 }
 
 type Client struct {
@@ -50,4 +51,12 @@ type UserRole struct {
 	RoleName  string `gorm:"uniqueIndex:idx_uniq_user_role,priority:2;not null"`
 	User      User   `gorm:"foreignKey:UserEmail"`
 	Role      Role   `gorm:"foreignKey:RoleName"`
+}
+
+type UserConfirmation struct {
+	UserEmail       string `gorm:"primary_key;unique;not null"`
+	OneTimePassword string `gorm:"not null"`
+	ExpiryTime      int64  `gorm:"not null"`
+	ConfirmedTime   int64  `gorm:"not null"`
+	User            User   `gorm:"foreignKey:UserEmail"`
 }

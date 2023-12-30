@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-webauthn/webauthn/protocol"
@@ -47,6 +48,8 @@ func Migrate(db *gorm.DB) {
 	db.AutoMigrate(&User{})
 	db.AutoMigrate(&Client{})
 	db.AutoMigrate(&UserCredential{})
+	db.AutoMigrate(&UserRole{})
+	db.AutoMigrate(&UserConfirmation{})
 }
 
 func ListUsers(db *gorm.DB) ([]User, error) {
@@ -230,4 +233,43 @@ func UpdateClient(db *gorm.DB, client *Client) error {
 		return dbResult.Error
 	}
 	return nil
+}
+
+func ExpireAllConfirmation(db *gorm.DB, email string) error {
+	timeNow := time.Now().Unix()
+	dbResult := db.Model(&UserConfirmation{}).Where("user_email = ? AND confirmed_time = ?", email, 0).Update("confirmed_time", timeNow)
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func CreateConfirmation(db *gorm.DB, confirmation *UserConfirmation) error {
+	if dbResult := db.Create(confirmation); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func GetConfirmation(db *gorm.DB, otp string) (*UserConfirmation, error) {
+	var confirmation UserConfirmation
+	if err := db.Where("one_time_password = ?", otp).First(&confirmation).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &confirmation, nil
+}
+
+func ConfirmUser(db *gorm.DB, confirmation *UserConfirmation) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&UserConfirmation{}).Where("one_time_password = ?", confirmation.OneTimePassword).Update("confirmed_time", time.Now().Unix()).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("email = ?", confirmation.UserEmail).Update("is_enabled", true).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }

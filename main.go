@@ -165,6 +165,12 @@ func main() {
 		ecdsaPrivateKey,
 		fidoService,
 		viper.GetBool("frontend_endpoints"),
+		viper.GetInt64("expiration_period"),
+		viper.GetString("resend_api_key"),
+		viper.GetString("mail_from"),
+		viper.GetString("mail_from_name"),
+		viper.GetString("confirmation_mail_subject"),
+		viper.GetString("domain"),
 	)
 	if err != nil {
 		slog.Error(

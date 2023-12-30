@@ -21,10 +21,11 @@ func GetSeedUsers(pathToImportFile string) ([]db.User, []db.Role, error) {
 	var seedRoleNames []string
 	for _, u := range importUsers {
 		dbUser := db.User{
-			Email:    u.Email,
-			DisplayName: u.DisplayName,
+			Email:        u.Email,
+			DisplayName:  u.DisplayName,
 			PasswordHash: getPasswordHash(u.Password),
-			Roles:    []db.Role{},
+			Roles:        []db.Role{},
+			IsEnabled:    false,
 		}
 		if u.Roles != nil {
 			for _, r := range u.Roles {

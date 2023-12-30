@@ -211,6 +211,11 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
+	if !user.IsEnabled {
+		logger.Warn("User is disabled")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		return
+	}
 
 	credentialAssertion, webAuthnSession, err := s.W.BeginLogin(user)
 	if err != nil {

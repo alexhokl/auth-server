@@ -27,6 +27,7 @@ type UserResponse struct {
 	DisplayName string           `json:"display_name"`
 	Roles       []string         `json:"roles"`
 	Credentials []CredentialInfo `json:"credentials"`
+	IsEnabled   bool             `json:"is_enabled"`
 }
 
 type ClientCreateRequest struct {

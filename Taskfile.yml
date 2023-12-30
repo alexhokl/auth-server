@@ -44,6 +44,11 @@ tasks:
       AUTH_WEBFINGER_EMAIL: alex@test.com
       AUTH_FRONTEND_ENDPOINTS: true
       AUTH_SEED_USERS_FILE_PATH: import_users.json
+      AUTH_EXPIRATION_PERIOD: 3600
+      AUTH_RESEND_API_KEY: ""
+      AUTH_MAIL_FROM: ""
+      AUTH_MAIL_FROM_NAME: ""
+      AUTH_CONFIRMATION_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -64,6 +69,11 @@ tasks:
       AUTH_ENFORCE_PKCE: false
       AUTH_FRONTEND_ENDPOINTS: true
       AUTH_SEED_USERS_FILE_PATH: import_users.json
+      AUTH_EXPIRATION_PERIOD: 3600
+      AUTH_RESEND_API_KEY: ""
+      AUTH_MAIL_FROM: ""
+      AUTH_MAIL_FROM_NAME: ""
+      AUTH_CONFIRMATION_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -74,7 +84,16 @@ tasks:
     - sh: "[ ! -z \"$(which xh)\" ]"
       msg: xh is not installed
     cmds:
-    - xh post http://{{.SITE}}/signup email={{.LOGIN_NAME}} password={{.LOGIN_PASSWORD}}
+    - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" http://{{.SITE}}/signup
+
+  test-signup-domain:
+    desc: test signup with xh
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which xh)\" ]"
+      msg: xh is not installed
+    cmds:
+    - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" https://$AUTH_DOMAIN/signup
 
   test-login:
     desc: test login with cURL
@@ -460,3 +479,16 @@ tasks:
     cmds:
     - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials"
 
+  db-remove-all:
+    desc: remove all data in database
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which psql)\" ]"
+      msg: psql is not installed
+    - sh: "[ ! -z \"$(which cat)\" ]"
+      msg: cat is not installed
+    vars:
+      CONNECTION_STRING:
+        sh: cat keys/database_connection_string
+    cmds:
+    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials; TRUNCATE TABLE clients; TRUNCATE TABLE user_roles; DELETE FROM roles; TRUNCATE TABLE user_confirmations; DELETE FROM users;"

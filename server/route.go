@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool) (*gin.Engine, error) {
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string) (*gin.Engine, error) {
 	dbConn, err := db.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
@@ -38,8 +38,16 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 
 	r.POST("/signin", api.SignIn)
 	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), api.SignInPasswordChallenge)
-	r.POST("/signup", api.WithDatabaseConnection(dialector), api.SignUp)
+	r.POST(
+		"/signup",
+		api.WithDatabaseConnection(dialector),
+		api.WithExpirationPeriod(expirationPeriod),
+		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject),
+		api.WithDomain(domain),
+		api.SignUp,
+	)
 	r.POST("/token", gin.WrapF(api.GetTokenRequestHandler(oauthService)))
+	r.GET("/confirm/:otp", api.WithDatabaseConnection(dialector), api.Confirm)
 
 	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
 	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
@@ -76,6 +84,9 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 		r.StaticFile("/assets/http.js", "./assets/http.js")
 		r.GET("/authenticated", api.RequiredAuthenticated(), api.AuthenticatedUI)
 		r.StaticFile("/", "./assets/home.html")
+		r.StaticFile("/signup", "./assets/signup.html")
+		r.StaticFile("/assets/signup.js", "./assets/signup.js")
+		r.StaticFile("/signup_continue", "./assets/signup_email.html")
 	}
 
 	return r, nil

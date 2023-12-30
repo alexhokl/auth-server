@@ -1,9 +1,12 @@
 package api
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
@@ -21,12 +24,12 @@ import (
 //	@Router			/signup [post]
 func SignUp(c *gin.Context) {
 	var req UserSignUpRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user := req.ToUser()
+	expirationPeriod := c.GetInt64("expiration_period")
 
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
@@ -34,12 +37,63 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
+	user := req.ToUser()
 	if err := db.CreateUser(dbConn, user); err != nil {
 		handleInternalError(c, err, "Unable to create user")
 		return
 	}
 
-	c.Status(http.StatusCreated)
+	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod)
+	if err != nil {
+		handleInternalError(c, err, "Unable to generate confirmation info")
+		return
+	}
+
+	if err := db.CreateConfirmation(dbConn, confirmationInfo); err != nil {
+		handleInternalError(c, err, "Unable to create user confirmation")
+		return
+	}
+
+	if err := sendConfirmationEmail(c, confirmationInfo); err != nil {
+		handleInternalError(c, err, "Unable to send confirmation email")
+		return
+	}
+
+	// TODO: make this configurable
+	c.Redirect(http.StatusFound, "/signup_continue")
+}
+
+func Confirm(c *gin.Context) {
+	otp := c.Param("otp")
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	confirmationInfo, err := db.GetConfirmation(dbConn, otp)
+	if err != nil {
+		handleInternalError(c, err, "Unable to get confirmation info")
+		return
+	}
+
+	if confirmationInfo == nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+		c.AbortWithStatus(http.StatusGone)
+		return
+	}
+
+	if err := db.ConfirmUser(dbConn, confirmationInfo); err != nil {
+		handleInternalError(c, err, "Unable to confirm user")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // SignIn starts a sign in session with a user
@@ -128,6 +182,12 @@ func SignInPasswordChallenge(c *gin.Context) {
 		return
 	}
 
+	if !user.IsEnabled {
+		logger.Warn("User is disabled")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		return
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(formValues.Password)); err != nil {
 		logger.Warn("Invalid password")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
@@ -208,13 +268,14 @@ func ListUsers(c *gin.Context) {
 			DisplayName: user.DisplayName,
 			Roles:       []string{},
 			Credentials: []CredentialInfo{},
+			IsEnabled:   user.IsEnabled,
 		}
 		for _, role := range user.Roles {
 			m.Roles = append(m.Roles, role.Name)
 		}
 		for _, credential := range user.Credentials {
 			m.Credentials = append(m.Credentials, CredentialInfo{
-				ID:           credential.ID,
+				ID:   credential.ID,
 				Name: credential.FriendlyName,
 			})
 		}
@@ -223,4 +284,29 @@ func ListUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, viewModels)
+}
+
+func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
+	otp, err := generateOneTimePassword()
+	if err != nil {
+		return nil, err
+	}
+
+	expiryTime := time.Unix(time.Now().Unix()+expiryPeriod, 0)
+
+	return &db.UserConfirmation{
+		UserEmail:       email,
+		OneTimePassword: otp,
+		ExpiryTime:      expiryTime.Unix(),
+		ConfirmedTime:   0,
+	}, nil
+}
+
+func generateOneTimePassword() (string, error) {
+	buf := make([]byte, 128)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(buf), nil
 }
