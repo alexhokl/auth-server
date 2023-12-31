@@ -241,6 +241,10 @@ func HomeUI(c *gin.Context) {
 	c.File("./assets/home.html")
 }
 
+func ChangePasswordUI(c *gin.Context) {
+	c.File("./assets/changepassword.html")
+}
+
 func HasEmailInSession(c *gin.Context) {
 	if email := getEmailFromSession(c); email == "" {
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -285,6 +289,55 @@ func ListUsers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, viewModels)
 }
+
+func ChangePassword(c *gin.Context) {
+	var req PasswordChangeRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	email := getEmailFromSession(c)
+	if email == "" {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	user, err := db.GetUser(dbConn, email)
+	if err != nil {
+		handleInternalError(c, err, "Unable to get user")
+		return
+	}
+	if user == nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid old password"})
+		return
+	}
+
+	if err := db.ChangePassword(dbConn, user.Email, getPasswordHash(req.NewPassword)); err != nil {
+		handleInternalError(c, err, "Unable to change password")
+		return
+	}
+
+	if err := sendPasswordChangedEmail(c, user.Email); err != nil {
+		handleInternalError(c, err, "Unable to send password changed email")
+		return
+	}
+
+	// TODO: make this configurable
+	c.Redirect(http.StatusFound, "/changepassword_completed")
+}
+
 
 func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
 	otp, err := generateOneTimePassword()

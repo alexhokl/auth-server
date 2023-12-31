@@ -49,6 +49,7 @@ tasks:
       AUTH_MAIL_FROM: ""
       AUTH_MAIL_FROM_NAME: ""
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
+      AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -74,6 +75,7 @@ tasks:
       AUTH_MAIL_FROM: ""
       AUTH_MAIL_FROM_NAME: ""
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
+      AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -92,6 +94,8 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which xh)\" ]"
       msg: xh is not installed
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
     - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" https://$AUTH_DOMAIN/signup
 
@@ -134,6 +138,17 @@ tasks:
       msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$AUTH_DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+
+  test-change-password-domain:
+    desc: test password change
+    silent: true
+    preconditions:
+    - sh: "[ ! -z \"$(which curl)\" ]"
+      msg: curl is not installed
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
+    cmds:
+    - curl -i -X POST -b {{.COOKIE_FILE}} -d "current_password={{.LOGIN_PASSWORD}}&new_password={{.LOGIN_NAME}}" https://$AUTH_DOMAIN/changepassword
 
   test-logout:
     desc: test logout with cURL

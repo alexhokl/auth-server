@@ -273,3 +273,10 @@ func ConfirmUser(db *gorm.DB, confirmation *UserConfirmation) error {
 		return nil
 	})
 }
+
+func ChangePassword(db *gorm.DB, email string, passwordHash []byte) error {
+	if dbResult := db.Model(&User{}).Where("email = ?", email).Update("password_hash", passwordHash); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}

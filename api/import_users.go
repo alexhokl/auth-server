@@ -25,7 +25,7 @@ func GetSeedUsers(pathToImportFile string) ([]db.User, []db.Role, error) {
 			DisplayName:  u.DisplayName,
 			PasswordHash: getPasswordHash(u.Password),
 			Roles:        []db.Role{},
-			IsEnabled:    false,
+			IsEnabled:    true,
 		}
 		if u.Roles != nil {
 			for _, r := range u.Roles {

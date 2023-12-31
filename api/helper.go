@@ -65,7 +65,7 @@ func sendConfirmationEmail(c *gin.Context, confirmationInfo *db.UserConfirmation
     params := &resend.SendEmailRequest{
         From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
         To:      []string{confirmationInfo.UserEmail},
-        Html:    getMailContent(confirmationURL),
+        Html:    getConfirmationMailContent(confirmationURL),
         Subject: confirmationMailSubject,
         Cc:      []string{},
         Bcc:     []string{},
@@ -85,6 +85,40 @@ func sendConfirmationEmail(c *gin.Context, confirmationInfo *db.UserConfirmation
 	return nil
 }
 
-func getMailContent(confirmationURL string) string {
+func sendPasswordChangedEmail(c *gin.Context, email string) error {
+	apiKey := c.GetString("resend_api_key")
+	mailFrom := c.GetString("mail_from")
+	mailFromName := c.GetString("mail_from_name")
+	passwordChangedMailSubject := c.GetString("password_changed_mail_subject")
+	client := resend.NewClient(apiKey)
+
+	params := &resend.SendEmailRequest{
+		From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
+		To:      []string{email},
+		Html:    getPasswordChangedMailContent(),
+		Subject: passwordChangedMailSubject,
+		Cc:      []string{},
+		Bcc:     []string{},
+		ReplyTo: mailFrom,
+	}
+
+	sent, err := client.Emails.Send(params)
+	if err != nil {
+		return err
+	}
+	slog.Info(
+		"Password changed email sent",
+		slog.String("id", sent.Id),
+		slog.String("to", email),
+	)
+
+	return nil
+}
+
+func getConfirmationMailContent(confirmationURL string) string {
 	return fmt.Sprintf("<p>Hi,</p><p><a href=\"%s\">Click here to confirm your email address</a></p><p>Regards</p>", confirmationURL)
+}
+
+func getPasswordChangedMailContent() string {
+	return "<p>Hi,</p><p>Your password has been changed.</p><p>Regards</p>"
 }

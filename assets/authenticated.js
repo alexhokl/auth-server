@@ -105,6 +105,10 @@ const signOut = async () => {
   window.location.href = '/';
 };
 
+const changePassword = () => {
+  window.location.href = '/changepassword';
+}
+
 isWebAuthnSupported().then(supported => {
   console.info('is webauthn supported?', supported);
 });

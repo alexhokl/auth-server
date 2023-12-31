@@ -18,8 +18,8 @@ type UserSignInWithPasswordRequest struct {
 }
 
 type PasswordChangeRequest struct {
-	OldPassword string `json:"old_password" binding:"required" example:"P@ssw0rd"`
-	NewPassword string `json:"new_password" binding:"required" example:"NewP@ssw0rd"`
+	OldPassword string `form:"current_password" binding:"required" example:"P@ssw0rd"`
+	NewPassword string `form:"new_password" binding:"required" example:"NewP@ssw0rd"`
 }
 
 type UserResponse struct {
