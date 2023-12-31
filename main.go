@@ -172,6 +172,7 @@ func main() {
 		viper.GetString("confirmation_mail_subject"),
 		viper.GetString("domain"),
 		viper.GetString("password_changed_mail_subject"),
+		viper.GetString("password_reset_mail_subject"),
 	)
 	if err != nil {
 		slog.Error(

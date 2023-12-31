@@ -3,12 +3,14 @@ package api
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/alexhokl/auth-server/db"
+	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -338,6 +340,126 @@ func ChangePassword(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/changepassword_completed")
 }
 
+func ResetPassword(c *gin.Context) {
+	var req PasswordResetRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	expirationPeriod := c.GetInt64("expiration_period")
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	user, err := db.GetUser(dbConn, req.Email)
+	if err != nil {
+		handleInternalError(c, err, "Unable to get user")
+		return
+	}
+	if user == nil {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod)
+	if err != nil {
+		handleInternalError(c, err, "Unable to generate confirmation info")
+		return
+	}
+
+	if err := db.CreateConfirmation(dbConn, confirmationInfo); err != nil {
+		handleInternalError(c, err, "Unable to create user confirmation")
+		return
+	}
+
+	if err := sendResetPasswordEmail(c, confirmationInfo); err != nil {
+		handleInternalError(c, err, "Unable to send reset password email")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func ConfirmResetPassword(c *gin.Context) {
+	otp := c.Param("otp")
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	confirmationInfo, err := db.GetConfirmation(dbConn, otp)
+	if err != nil {
+		handleInternalError(c, err, "Unable to get confirmation info")
+		return
+	}
+
+	if confirmationInfo == nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+		c.AbortWithStatus(http.StatusGone)
+		return
+	}
+
+	c.HTML(http.StatusOK, "new_password.tmpl", gin.H{
+		"otp": otp,
+	})
+}
+
+func NewPassword(c *gin.Context) {
+	var req NewPasswordRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	confirmationInfo, err := db.GetConfirmation(dbConn, req.OTP)
+	if err != nil {
+		handleInternalError(c, err, "Unable to get confirmation info")
+		return
+	}
+
+	if confirmationInfo == nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+		c.AbortWithStatus(http.StatusGone)
+		return
+	}
+
+	if err := db.ChangePassword(dbConn, confirmationInfo.UserEmail, getPasswordHash(req.NewPassword)); err != nil {
+		handleInternalError(c, err, "Unable to change password")
+		return
+	}
+
+	if err := sendPasswordChangedEmail(c, confirmationInfo.UserEmail); err != nil {
+		handleInternalError(c, err, "Unable to send password changed email")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func RedirectToChangePasswordUI(c *gin.Context) {
+	issuer := httphelper.GetBaseURL(c.Request)
+	c.Redirect(http.StatusFound, fmt.Sprintf("%s/changepassword", issuer))
+}
 
 func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
 	otp, err := generateOneTimePassword()

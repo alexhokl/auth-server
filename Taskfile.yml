@@ -50,6 +50,7 @@ tasks:
       AUTH_MAIL_FROM_NAME: ""
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
       AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
+      AUTH_PASSWORD_RESET_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -76,6 +77,7 @@ tasks:
       AUTH_MAIL_FROM_NAME: ""
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
       AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
+      AUTH_PASSWORD_RESET_MAIL_SUBJECT: ""
     cmds:
     - go run -tags=nomsgpack main.go
 

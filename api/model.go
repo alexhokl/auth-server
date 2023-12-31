@@ -22,6 +22,15 @@ type PasswordChangeRequest struct {
 	NewPassword string `form:"new_password" binding:"required" example:"NewP@ssw0rd"`
 }
 
+type PasswordResetRequest struct {
+	Email string `form:"email" binding:"required,email" example:"alex@test.com"`
+}
+
+type NewPasswordRequest struct {
+	NewPassword string `form:"new_password" binding:"required" example:"P@ssw0rd"`
+	OTP         string `form:"otp" binding:"required" example:"123456"`
+}
+
 type UserResponse struct {
 	Email       string           `json:"email"`
 	DisplayName string           `json:"display_name"`

@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string) (*gin.Engine, error) {
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string) (*gin.Engine, error) {
 	dbConn, err := db.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
@@ -33,6 +33,10 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
+	r.LoadHTMLFiles(
+		"./assets/new_password.tmpl",
+	)
+
 	docs.SwaggerInfo.BasePath = "/"
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
@@ -42,7 +46,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 		"/signup",
 		api.WithDatabaseConnection(dialector),
 		api.WithExpirationPeriod(expirationPeriod),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject),
+		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
 		api.WithDomain(domain),
 		api.SignUp,
 	)
@@ -51,16 +55,29 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	r.POST("/changepassword",
 		api.RequiredAuthenticated(),
 		api.WithDatabaseConnection(dialector),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject),
+		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
 		api.WithDomain(domain),
 		api.ChangePassword,
 	)
+	r.POST("/resetpassword",
+		api.WithDatabaseConnection(dialector),
+		api.WithExpirationPeriod(expirationPeriod),
+		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
+		api.WithDomain(domain),
+		api.ResetPassword)
+	r.GET("/confirmresetpassword/:otp", api.WithDatabaseConnection(dialector), api.ConfirmResetPassword)
+	r.POST("/confirmresetpassword/:otp",
+		api.WithDatabaseConnection(dialector),
+		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
+		api.WithDomain(domain),
+		api.NewPassword)
 
 	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
 	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
 	r.GET("/.well-known/openid-configuration", api.GetOpenIDConfiguration)
 	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(privateKey))
 	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
+	r.GET("/.well-known/change-password", api.RedirectToChangePasswordUI)
 
 	fidoGroup := r.Group("/fido")
 	fidoGroup.Use(api.WithDatabaseConnection(dialector))
@@ -97,6 +114,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 		r.StaticFile("/assets/changepassword.js", "./assets/changepassword.js")
 		r.GET("/changepassword", api.RequiredAuthenticated(), api.ChangePasswordUI)
 		r.StaticFile("/changepassword_completed", "./assets/changepassword_completed.html")
+		r.StaticFile("/resetpassword", "./assets/reset_password.html")
+		r.StaticFile("/assets/new_password.js", "./assets/new_password.js")
 	}
 
 	return r, nil

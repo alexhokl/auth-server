@@ -55,13 +55,14 @@ func WithExpirationPeriod(expirationPeriod int64) gin.HandlerFunc {
 	}
 }
 
-func WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject string, passwordChangedMailSubject string) gin.HandlerFunc {
+func WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject string, passwordChangedMailSubject string, resetPasswordMailSubject string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("resend_api_key", resendAPIKey)
 		c.Set("mail_from", mailFrom)
 		c.Set("mail_from_name", mailFromName)
 		c.Set("confirmation_mail_subject", confirmationMailSubject)
 		c.Set("password_changed_mail_subject", passwordChangedMailSubject)
+		c.Set("reset_password_mail_subject", resetPasswordMailSubject)
 
 		c.Next()
 	}
