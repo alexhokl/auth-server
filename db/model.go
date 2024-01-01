@@ -60,3 +60,14 @@ type UserConfirmation struct {
 	ConfirmedTime   int64  `gorm:"not null"`
 	User            User   `gorm:"foreignKey:UserEmail"`
 }
+
+type Scope struct {
+	Name string `gorm:"primary_key;unique;not null"`
+}
+
+type ClientScope struct {
+	ClientID  string `gorm:"uniqueIndex:idx_uniq_client_scope,priority:1;not null"`
+	ScopeName string `gorm:"uniqueIndex:idx_uniq_client_scope,priority:2;not null"`
+	Client    Client `gorm:"foreignKey:ClientID"`
+	Scope     Scope  `gorm:"foreignKey:ScopeName"`
+}

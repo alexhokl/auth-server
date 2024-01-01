@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/spf13/viper"
+	"gorm.io/gorm"
 )
 
 const ContentTypeJrdJSON = "application/jrd+json"
@@ -63,13 +65,18 @@ func HandleErrorResponse(re *errors.Response) {
 //	@Produce	application/json
 //	@Router		/.well-known/openid-configuration [get]
 func GetOpenIDConfiguration(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
 	issuer := httphelper.GetBaseURL(c.Request)
 	oauthConfig := &OpenIDConfiguration{
 		Issuer:                            issuer,
 		AuthorizationEndpoint:             fmt.Sprintf("%s/authorize", issuer),
 		TokenEndpoint:                     fmt.Sprintf("%s/token", issuer),
 		JwksUri:                           fmt.Sprintf("%s/.well-known/openid-configuration/jwks", issuer),
-		ScopesSupported:                   getScopes(),
+		ScopesSupported:                   getScopes(dbConn),
 		ResponseTypesSupported:            getResponseTypes(),
 		GrantTypesSupported:               getGrantTypes(),
 		TokenEndpointAuthMethodsSupported: getTokenEndpointSupportedAuthMethods(),
@@ -196,16 +203,9 @@ func getResponseTypes() []string {
 	}
 }
 
-func getScopes() []string {
-	return getOIDCScopes()
-}
-
-func getOIDCScopes() []string {
-	return []string{
-		"openid",
-		"email",
-		"profile",
-	}
+func getScopes(dbConn *gorm.DB) []string {
+	scopes, _ := db.ListScopes(dbConn)
+	return scopes
 }
 
 func getGrantTypes() []string {

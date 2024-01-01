@@ -139,6 +139,10 @@ type ImportUser struct {
 	Roles       []string `json:"roles"`
 }
 
+type ScopeCreationRequest struct {
+	Name string `json:"name" binding:"required" example:"read"`
+}
+
 func (req *UserSignUpRequest) ToUser() *db.User {
 	return &db.User{
 		Email:        req.Email,

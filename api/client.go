@@ -165,3 +165,84 @@ func ListClients(c *gin.Context) {
 
 	c.JSON(http.StatusOK, clientResponses)
 }
+
+func ListClientScopes(c *gin.Context) {
+	clientID := c.Param("client_id")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+	scopes, err := db.ListClientScopes(dbConn, clientID)
+	if err != nil {
+		slog.Error(
+			"Unable to list scopes for client",
+			slog.String("client_id", clientID),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, scopes)
+}
+
+func CreateClientScope(c *gin.Context) {
+	clientID := c.Param("client_id")
+	var req ScopeCreationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+	isScopeExists, err := db.IsScopeExist(dbConn, req.Name)
+	if err != nil {
+		slog.Error(
+			"Unable to check if scope exists",
+			slog.String("scope", req.Name),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	if !isScopeExists {
+		c.JSON(http.StatusConflict, gin.H{"error": "Scope does not exist"})
+		return
+	}
+	errCreate := db.CreateClientScope(dbConn, clientID, req.Name)
+	if errCreate != nil {
+		slog.Error(
+			"Unable to create scope for client",
+			slog.String("client_id", clientID),
+			slog.String("error", errCreate.Error()),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusCreated)
+}
+
+func DeleteClientScope(c *gin.Context) {
+	clientID := c.Param("client_id")
+	scope := c.Param("scope")
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+	err := db.DeleteClientScope(dbConn, clientID, scope)
+	if err != nil {
+		slog.Error(
+			"Unable to delete scope for client",
+			slog.String("client_id", clientID),
+			slog.String("scope", scope),
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

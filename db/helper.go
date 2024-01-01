@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,6 +51,15 @@ func Migrate(db *gorm.DB) {
 	db.AutoMigrate(&UserCredential{})
 	db.AutoMigrate(&UserRole{})
 	db.AutoMigrate(&UserConfirmation{})
+	db.AutoMigrate(&Role{})
+	if err := db.AutoMigrate(&Scope{}); err == nil && db.Migrator().HasTable(&Scope{}) {
+		if err := db.First(&Scope{}).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			db.Create(&Scope{Name: "openid"})
+			db.Create(&Scope{Name: "profile"})
+			db.Create(&Scope{Name: "email"})
+		}
+	}
+	db.AutoMigrate(&ClientScope{})
 }
 
 func ListUsers(db *gorm.DB) ([]User, error) {
@@ -276,6 +286,84 @@ func ConfirmUser(db *gorm.DB, confirmation *UserConfirmation) error {
 
 func ChangePassword(db *gorm.DB, email string, passwordHash []byte) error {
 	if dbResult := db.Model(&User{}).Where("email = ?", email).Update("password_hash", passwordHash); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func CreateScope(db *gorm.DB, scope string) error {
+	if dbResult := db.Create(&Scope{Name: scope}); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func ListScopes(db *gorm.DB) ([]string, error) {
+	var scopes []Scope
+	dbResult := db.Find(&scopes)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return []string{}, nil
+		}
+		return nil, dbResult.Error
+	}
+	var scopeNames []string
+	for _, scope := range scopes {
+		scopeNames = append(scopeNames, scope.Name)
+	}
+	return scopeNames, nil
+}
+
+func DeleteScope(db *gorm.DB, scope string) error {
+	if dbResult := db.Where("name = ?", scope).Delete(&Scope{}); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func IsScopeExist(db *gorm.DB, scope string) (bool, error) {
+	var count int64
+	dbResult := db.Model(&Scope{}).Where("name = ?", scope).Count(&count)
+	if dbResult.Error != nil {
+		return false, dbResult.Error
+	}
+	return count > 0, nil
+}
+
+func IsScopeInUse(db *gorm.DB, scope string) (bool, error) {
+	var count int64
+	dbResult := db.Model(&ClientScope{}).Where("scope_name = ?", scope).Count(&count)
+	if dbResult.Error != nil {
+		return false, dbResult.Error
+	}
+	return count > 0, nil
+}
+
+func CreateClientScope(db *gorm.DB, clientID string, scope string) error {
+	if dbResult := db.Create(&ClientScope{ClientID: clientID, ScopeName: scope}); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func ListClientScopes(db *gorm.DB, clientID string) ([]string, error) {
+	var clientScopes []ClientScope
+	dbResult := db.Where("client_id = ?", clientID).Find(&clientScopes)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return []string{}, nil
+		}
+		return nil, dbResult.Error
+	}
+	var scopeNames []string
+	for _, clientScope := range clientScopes {
+		scopeNames = append(scopeNames, clientScope.ScopeName)
+	}
+	return scopeNames, nil
+}
+
+func DeleteClientScope(db *gorm.DB, clientID string, scope string) error {
+	if dbResult := db.Where("client_id = ? AND scope_name = ?", clientID, scope).Delete(&ClientScope{}); dbResult.Error != nil {
 		return dbResult.Error
 	}
 	return nil

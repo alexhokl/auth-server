@@ -16,7 +16,7 @@ env:
   AUTH_REDIS_SESSION_DB: auth-session
   AUTH_REDIS_TOKEN_DB: auth-token
   AUTH_APPLICATION_NAME: Auth Server
-  AUTH_DOMAIN: localhost
+  AUTH_DOMAIN: "{{.DOMAIN}}"
   PGPASSWORD: "{{.PASSWORD}}"
 
 tasks:
@@ -508,4 +508,4 @@ tasks:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials; TRUNCATE TABLE clients; TRUNCATE TABLE user_roles; DELETE FROM roles; TRUNCATE TABLE user_confirmations; DELETE FROM users;"
+    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials; TRUNCATE TABLE client_scopes; DELETE FROM scopes; DELETE FROM clients; TRUNCATE TABLE user_roles; DELETE FROM roles; TRUNCATE TABLE user_confirmations; DELETE FROM users;"
