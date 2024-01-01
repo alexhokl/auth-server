@@ -60,6 +60,7 @@ func Migrate(db *gorm.DB) {
 		}
 	}
 	db.AutoMigrate(&ClientScope{})
+	db.AutoMigrate(&OidcClient{})
 }
 
 func ListUsers(db *gorm.DB) ([]User, error) {
@@ -364,6 +365,39 @@ func ListClientScopes(db *gorm.DB, clientID string) ([]string, error) {
 
 func DeleteClientScope(db *gorm.DB, clientID string, scope string) error {
 	if dbResult := db.Where("client_id = ? AND scope_name = ?", clientID, scope).Delete(&ClientScope{}); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func ListOIDCClients(db *gorm.DB) ([]OidcClient, error) {
+	var clients []OidcClient
+	dbResult := db.Find(&clients)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return []OidcClient{}, nil
+		}
+		return nil, dbResult.Error
+	}
+	return clients, nil
+}
+
+func CreateOIDCClient(db *gorm.DB, client *OidcClient) error {
+	if dbResult := db.Create(client); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func UpdateOIDCClient(db *gorm.DB, client *OidcClient) error {
+	if dbResult := db.Where("name = ?", client.Name).Updates(client); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+func DeleteOIDCClient(db *gorm.DB, name string) error {
+	if dbResult := db.Where("name = ?", name).Delete(&OidcClient{}); dbResult.Error != nil {
 		return dbResult.Error
 	}
 	return nil

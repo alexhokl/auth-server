@@ -34,6 +34,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	r.Use(gin.Recovery())
 
 	r.LoadHTMLFiles(
+		"./assets/signin.html",
 		"./assets/new_password.tmpl",
 	)
 
@@ -112,8 +113,15 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	users.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())
 	users.GET("", api.ListUsers)
 
+	oidc := r.Group("/oidcclients")
+	oidc.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())
+	oidc.GET("", api.ListOIDCCLients)
+	oidc.POST("", api.CreateOIDCClient)
+	oidc.PUT(":name", api.UpdateOIDCClient)
+	oidc.DELETE(":name", api.DeleteOIDCClient)
+
 	if enableFrontendEndpoints {
-		r.StaticFile("/signin", "./assets/signin.html")
+		r.GET("/signin", api.WithDatabaseConnection(dialector), api.SignInUI)
 		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
 		r.StaticFile("/assets/signin.js", "./assets/signin.js")
 		r.StaticFile("/assets/styles.css", "./assets/styles.css")

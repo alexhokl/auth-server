@@ -70,6 +70,28 @@ type CredentialNameRequest struct {
 	Name string `json:"name" binding:"required" example:"My FIDO key"`
 }
 
+type OIDCClientResponse struct {
+	Name        string `json:"name"`
+	ClientID    string `json:"client_id"`
+	RedirectURI string `json:"redirect_uri"`
+	ButtonName  string `json:"button_name"`
+}
+
+type OIDCClientCreateRequest struct {
+	Name         string `json:"name" binding:"required" example:"My OIDC client"`
+	ClientID     string `json:"client_id" binding:"required" example:"cli"`
+	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
+	RedirectURI  string `json:"redirect_uri" binding:"required" example:"http://localhost:8080/callback"`
+	ButtonName   string `json:"button_name" binding:"required" example:"Login with My OIDC client"`
+}
+
+type OIDCClientUpdateRequest struct {
+	ClientID     string `json:"client_id" binding:"required" example:"cli"`
+	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
+	RedirectURI  string `json:"redirect_uri" binding:"required" example:"http://localhost:8080/callback"`
+	ButtonName   string `json:"button_name" binding:"required" example:"Login with My OIDC client"`
+}
+
 type OpenIDConfiguration struct {
 	Issuer                                             string   `json:"issuer,omitempty"`
 	AuthorizationEndpoint                              string   `json:"authorization_endpoint,omitempty"`

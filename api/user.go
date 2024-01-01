@@ -231,16 +231,34 @@ func SignOut(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func SignInUI(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	oidcClients, err := db.ListOIDCClients(dbConn)
+	if err != nil {
+		slog.Error(
+			"Unable to list OIDC clients",
+			slog.String("error", err.Error()),
+		)
+		oidcClients = []db.OidcClient{}
+	}
+
+	c.HTML(http.StatusOK, "signin.html", gin.H{
+		"clients": oidcClients,
+		"hasClients": len(oidcClients) > 0,
+	})
+}
+
 func SignInChallengeUI(c *gin.Context) {
 	c.File("./assets/signin_challenge.html")
 }
 
 func AuthenticatedUI(c *gin.Context) {
 	c.File("./assets/authenticated.html")
-}
-
-func HomeUI(c *gin.Context) {
-	c.File("./assets/home.html")
 }
 
 func ChangePasswordUI(c *gin.Context) {
