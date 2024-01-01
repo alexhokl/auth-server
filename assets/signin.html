@@ -18,7 +18,7 @@
       <section id="oidc">
         {{ range $client := .clients }}
         <div>
-            <a href="/signin/{{ $client.Name }}/start">{{ $client.ButtonName }}</a>
+            <a href="/signin/{{ $client.Name }}/{{ $client.StartEndpoint }}">{{ $client.ButtonName }}</a>
         </div>
         {{ end }}
         {{ if .hasClients }}

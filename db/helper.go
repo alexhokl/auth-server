@@ -382,6 +382,17 @@ func ListOIDCClients(db *gorm.DB) ([]OidcClient, error) {
 	return clients, nil
 }
 
+func GetOIDCClient(db *gorm.DB, name string) (*OidcClient, error) {
+	var client OidcClient
+	if err := db.Where("name = ?", name).First(&client).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &client, nil
+}
+
 func CreateOIDCClient(db *gorm.DB, client *OidcClient) error {
 	if dbResult := db.Create(client); dbResult.Error != nil {
 		return dbResult.Error

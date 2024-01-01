@@ -101,7 +101,7 @@ func TestSwaggerJson(t *testing.T) {
 func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 	mockDB, mock, _ := sqlmock.New()
 	dialector := db.GetDatabaseDialectorFromConnection(mockDB)
-	router, err := server.GetRouter(dialector, nil, "", "", "", "", false, nil, nil, true, 3600, "", "user@test.com", "Test User", "Confirming your registration", "test.com", "Your password has been changed", "Password reset requested")
+	router, err := server.GetRouter(dialector, nil, "", "", "", "", false, nil, nil, true, 3600, "", "user@test.com", "Test User", "Confirming your registration", "test.com", "Your password has been changed", "Password reset requested", "start")
 	if err != nil {
 		panic(err)
 	}

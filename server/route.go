@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"net/http"
 
 	"github.com/alexhokl/auth-server/api"
@@ -21,7 +22,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string) (*gin.Engine, error) {
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string, oidcStartEndpoint string) (*gin.Engine, error) {
 	dbConn, err := db.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
@@ -43,6 +44,12 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 
 	r.POST("/signin", api.SignIn)
 	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), api.SignInPasswordChallenge)
+	r.GET(
+		fmt.Sprintf("/signin/:oidc_name/%s", oidcStartEndpoint),
+		api.WithDatabaseConnection(dialector),
+		api.WithOIDCStartEndpoint(oidcStartEndpoint),
+		api.RedirectToOIDCEndpoint,
+	)
 	r.POST(
 		"/signup",
 		api.WithDatabaseConnection(dialector),
@@ -121,7 +128,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	oidc.DELETE(":name", api.DeleteOIDCClient)
 
 	if enableFrontendEndpoints {
-		r.GET("/signin", api.WithDatabaseConnection(dialector), api.SignInUI)
+		r.GET("/signin", api.WithDatabaseConnection(dialector), api.WithOIDCStartEndpoint(oidcStartEndpoint), api.SignInUI)
 		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
 		r.StaticFile("/assets/signin.js", "./assets/signin.js")
 		r.StaticFile("/assets/styles.css", "./assets/styles.css")
