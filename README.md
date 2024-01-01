@@ -2,7 +2,15 @@
 
 Serving authentication and OAuth2 authorization
 
-It is based on [go-oauth2/oauth2](https://github.com/go-oauth2/oauth2).
+It is based on the following libraries.
+
+- [go-oauth2/oauth2](https://github.com/go-oauth2/oauth2).
+- [golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- [spf13/viper](https://github.com/spf13/viper)
+- [gin-gonic/gin](https://github.com/gin-gonic/gin)
+- [go-webauthn/webauthn](https://github.com/go-webauthn/webauthn)
+- [resendlabs/resend-go](https://github.com/resendlabs/resend-go)
+
 
 :warning: This is a work in progress and not ready for production yet :warning:
 
