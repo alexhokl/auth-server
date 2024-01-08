@@ -75,9 +75,9 @@ func WithDomain(domain string) gin.HandlerFunc {
 	}
 }
 
-func WithOIDCStartEndpoint(oidcStartEndpoint string) gin.HandlerFunc {
+func WithOIDC(enable bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Set("oidc_start_endpoint", oidcStartEndpoint)
+		c.Set("enable_oidc", enable)
 		c.Next()
 	}
 }

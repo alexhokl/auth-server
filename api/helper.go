@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const queryParamRedirectURL = "redirect_url"
+const queryParamRedirectURL = "redirect_uri"
 
 func isMaliciousRequest(c *gin.Context) error {
 	// TODO: Implement

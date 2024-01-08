@@ -173,7 +173,8 @@ func main() {
 		viper.GetString("domain"),
 		viper.GetString("password_changed_mail_subject"),
 		viper.GetString("password_reset_mail_subject"),
-		viper.GetString("oidc_start_endpoint"),
+		viper.GetBool("enable_oidc"),
+		viper.GetString("session_cookie_name"),
 	)
 	if err != nil {
 		slog.Error(

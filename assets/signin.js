@@ -49,7 +49,7 @@ const loginByKey = async () => {
   await post(loginCallbackUrl, params);
   console.info('Login has been completed.');
   const urlParams = new URLSearchParams(window.location.search);
-  const redirectUri = urlParams.get('redirect_url');
+  const redirectUri = urlParams.get('redirect_uri');
   window.location.href = redirectUri;
 };
 

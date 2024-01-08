@@ -22,12 +22,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string, oidcStartEndpoint string) (*gin.Engine, error) {
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string, enableOIDC bool, sessionCookieName string) (*gin.Engine, error) {
 	dbConn, err := db.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
 	}
-	setupSessionManager(redisHost, redisPassword, redisSessionDatabaseName)
+	setupSessionManager(enableOIDC, sessionCookieName, redisHost, redisPassword, redisSessionDatabaseName)
 	oauthService := getOAuthService(dbConn, tokenGenerator, redisHost, redisPassword, redisTokenDatabaseName, enforcePKCE)
 
 	r := gin.New()
@@ -44,12 +44,18 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 
 	r.POST("/signin", api.SignIn)
 	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), api.SignInPasswordChallenge)
-	r.GET(
-		fmt.Sprintf("/signin/:oidc_name/%s", oidcStartEndpoint),
-		api.WithDatabaseConnection(dialector),
-		api.WithOIDCStartEndpoint(oidcStartEndpoint),
-		api.RedirectToOIDCEndpoint,
-	)
+	if enableOIDC {
+		r.GET(
+			fmt.Sprintf("/:action/:oidc_name/%s", api.OIDC_START_ENDPOINT),
+			api.WithDatabaseConnection(dialector),
+			api.RedirectToOIDCEndpoint,
+		)
+		r.GET(
+			fmt.Sprintf("/signin/:oidc_name/%s", api.OIDC_CALLBACK_ENDPOINT),
+			api.WithDatabaseConnection(dialector),
+			api.OIDCCallback,
+		)
+	}
 	r.POST(
 		"/signup",
 		api.WithDatabaseConnection(dialector),
@@ -128,7 +134,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	oidc.DELETE(":name", api.DeleteOIDCClient)
 
 	if enableFrontendEndpoints {
-		r.GET("/signin", api.WithDatabaseConnection(dialector), api.WithOIDCStartEndpoint(oidcStartEndpoint), api.SignInUI)
+		r.GET("/signin", api.WithDatabaseConnection(dialector), api.WithOIDC(enableOIDC), api.SignInUI)
 		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
 		r.StaticFile("/assets/signin.js", "./assets/signin.js")
 		r.StaticFile("/assets/styles.css", "./assets/styles.css")
@@ -185,7 +191,7 @@ func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redi
 	return srv
 }
 
-func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
+func setupSessionManager(enableOIDC bool, cookieName, redisHost, redisPassword, redisDatabaseName string) {
 	sessionStore := sessionredis.NewRedisStore(
 		&sessionredis.Options{
 			Addr:     redisHost,
@@ -193,8 +199,20 @@ func setupSessionManager(redisHost, redisPassword, redisDatabaseName string) {
 		},
 		redisDatabaseName,
 	)
+
+	sameSiteMode := http.SameSiteStrictMode
+	if enableOIDC {
+		// Without using OIDC, SameSite can be set to Srtict.
+		// However, with OIDC, SameSite has to be set to None so that it
+		// supports redirection to an external OIDC provider.
+		// See https://github.com/aspnet/AspNetKatana/issues/386#issuecomment-709420241
+		sameSiteMode = http.SameSiteNoneMode
+	}
+
 	session.InitManager(
-		session.SetSameSite(http.SameSiteStrictMode),
+		session.SetSameSite(sameSiteMode),
+		session.SetSecure(true),
 		session.SetStore(sessionStore),
+		session.SetCookieName(cookieName),
 	)
 }

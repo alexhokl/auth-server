@@ -10,30 +10,9 @@ import (
 	"time"
 
 	"github.com/alexhokl/auth-server/db"
-	"github.com/alexhokl/helper/authhelper"
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/facebook"
-	"golang.org/x/oauth2/google"
-	"golang.org/x/oauth2/instagram"
-	"golang.org/x/oauth2/microsoft"
-	"golang.org/x/oauth2/slack"
-)
-
-const lengthStateStr = 32
-const lengthCodeVerifier = 64
-const pkceChallengeMethod = "S256"
-
-type OIDCProvider string
-
-const (
-	Google    OIDCProvider = "google"
-	Facebook  OIDCProvider = "facebook"
-	Microsoft OIDCProvider = "microsoft"
-	Instagram OIDCProvider = "instagram"
-	Slack     OIDCProvider = "slack"
 )
 
 // SignUp creates a new user
@@ -148,7 +127,7 @@ func SignIn(c *gin.Context) {
 
 	challengeURL, _ := url.Parse("/signin/challenge")
 	challengeQuery := challengeURL.Query()
-	challengeQuery.Add("redirect_url", redirectURL)
+	challengeQuery.Add("redirect_uri", redirectURL)
 	challengeURL.RawQuery = challengeQuery.Encode()
 
 	c.Redirect(http.StatusFound, challengeURL.String())
@@ -230,53 +209,6 @@ func SignInPasswordChallenge(c *gin.Context) {
 	c.Redirect(http.StatusFound, redirectURL)
 }
 
-func RedirectToOIDCEndpoint(c *gin.Context) {
-	oidcName := c.Param("oidc_name")
-
-	dbConn, ok := getDatabaseConnectionFromContext(c)
-	if !ok {
-		handleInternalError(c, nil, "Missing configuration for database")
-		return
-	}
-	oidcClient, err := db.GetOIDCClient(dbConn, oidcName)
-	if err != nil {
-		handleInternalError(c, err, "Unable to get OIDC client")
-		return
-	}
-	if oidcClient == nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-
-	oauthConfig, err := getOAuthConfig(oidcClient)
-	if err != nil {
-		handleInternalError(c, err, "Unable to get OAuth configuration")
-		return
-	}
-
-	state, err := authhelper.GenerateState(lengthStateStr)
-	if err != nil {
-		handleInternalError(c, err, "Unable to generate state")
-		return
-	}
-	codeVerifier := authhelper.GeneratePKCEVerifier()
-	codeChallenge := authhelper.GeneratePKCEChallenge(codeVerifier)
-	authOpts := []oauth2.AuthCodeOption{
-		oauth2.AccessTypeOnline,
-		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-		oauth2.SetAuthURLParam("code_challenge_method", pkceChallengeMethod),
-	}
-
-	redirectURL := oauthConfig.AuthCodeURL(state, authOpts...)
-
-	slog.Info(
-		"Redirecting to OIDC endpoint",
-		slog.String("endpoint", redirectURL),
-	)
-
-	c.Redirect(http.StatusFound, redirectURL)
-}
-
 // SignOut signs out a user
 //
 //	@Summary		Signs out a user
@@ -300,6 +232,21 @@ func SignOut(c *gin.Context) {
 }
 
 func SignInUI(c *gin.Context) {
+	type OIDCClientViewModel struct {
+		Name          string
+		ButtonName    string
+		StartEndpoint string
+	}
+
+	enableOIDC := c.GetBool("enable_oidc")
+	if !enableOIDC {
+		c.HTML(http.StatusOK, "signin.html", gin.H{
+			"clients":    []OIDCClientViewModel{},
+			"hasClients": false,
+		})
+		return
+	}
+
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
 		handleInternalError(c, nil, "Missing configuration for database")
@@ -315,30 +262,18 @@ func SignInUI(c *gin.Context) {
 		oidcClients = []db.OidcClient{}
 	}
 
-	type OIDCClientViewModel struct {
-		Name string
-		ButtonName string
-		StartEndpoint string
-	}
-
-	startEndpoint := c.GetString("oidc_start_endpoint")
-	if startEndpoint == "" {
-		handleInternalError(c, nil, "missing configration for OIDC start endpoint")
-		return
-	}
-
 	var viewModels []OIDCClientViewModel
 	for _, c := range oidcClients {
 		viewModels = append(viewModels, OIDCClientViewModel{
-			Name: c.Name,
-			ButtonName: c.ButtonName,
-			StartEndpoint: startEndpoint,
+			Name:          c.Name,
+			ButtonName:    c.ButtonName,
+			StartEndpoint: OIDC_START_ENDPOINT,
 		})
 	}
 
 	c.HTML(http.StatusOK, "signin.html", gin.H{
-		"clients":       viewModels,
-		"hasClients":    len(viewModels) > 0,
+		"clients":    viewModels,
+		"hasClients": len(viewModels) > 0,
 	})
 }
 
@@ -569,7 +504,7 @@ func RedirectToChangePasswordUI(c *gin.Context) {
 }
 
 func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
-	otp, err := generateOneTimePassword()
+	otp, err := generateOneTimePassword(128)
 	if err != nil {
 		return nil, err
 	}
@@ -584,8 +519,8 @@ func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirm
 	}, nil
 }
 
-func generateOneTimePassword() (string, error) {
-	buf := make([]byte, 128)
+func generateOneTimePassword(lengthRandomBytes int) (string, error) {
+	buf := make([]byte, lengthRandomBytes)
 	_, err := rand.Read(buf)
 	if err != nil {
 		return "", err
@@ -593,41 +528,3 @@ func generateOneTimePassword() (string, error) {
 	return base64.URLEncoding.EncodeToString(buf), nil
 }
 
-func getOAuthConfig(oidcClient *db.OidcClient) (*oauth2.Config, error) {
-	var config *oauth2.Config
-	provider := OIDCProvider(oidcClient.Name)
-	switch provider {
-	case Google:
-		config = &oauth2.Config{
-			Endpoint: google.Endpoint,
-			Scopes:   []string{"openid", "profile", "email"},
-		}
-	case Facebook:
-		config = &oauth2.Config{
-			Endpoint: facebook.Endpoint,
-			Scopes:   []string{"public_profile", "email"},
-		}
-	case Microsoft:
-		config = &oauth2.Config{
-			Endpoint: microsoft.LiveConnectEndpoint,
-			Scopes:   []string{"wl.basic", "wl.emails"},
-		}
-	case Instagram:
-		config = &oauth2.Config{
-			Endpoint: instagram.Endpoint,
-			Scopes:   []string{"basic"},
-		}
-	case Slack:
-		config = &oauth2.Config{
-			Endpoint: slack.Endpoint,
-			Scopes:   []string{"identity.basic", "identity.email", "identity.avatar"},
-		}
-	default:
-		return nil, fmt.Errorf("unsupported OIDC client: %s", oidcClient.Name)
-	}
-
-	config.ClientID = oidcClient.ClientID
-	config.ClientSecret = oidcClient.ClientSecret
-	config.RedirectURL = oidcClient.RedirectURI
-	return config, nil
-}
