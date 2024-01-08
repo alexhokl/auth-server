@@ -51,6 +51,8 @@ tasks:
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
       AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
       AUTH_PASSWORD_RESET_MAIL_SUBJECT: ""
+      AUTH_ENABLE_OIDC: true
+      AUTH_SESSION_COOKIE_NAME: "auth-server"
     cmds:
     - go run -tags=nomsgpack main.go
 
@@ -78,19 +80,12 @@ tasks:
       AUTH_CONFIRMATION_MAIL_SUBJECT: ""
       AUTH_PASSWORD_CHANGED_MAIL_SUBJECT: ""
       AUTH_PASSWORD_RESET_MAIL_SUBJECT: ""
+      AUTH_ENABLE_OIDC: true
+      AUTH_SESSION_COOKIE_NAME: "auth-server"
     cmds:
     - go run -tags=nomsgpack main.go
 
   test-signup:
-    desc: test signup with xh
-    silent: true
-    preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
-    cmds:
-    - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" http://{{.SITE}}/signup
-
-  test-signup-domain:
     desc: test signup with xh
     silent: true
     preconditions:
@@ -107,15 +102,6 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    cmds:
-    - curl -i -X POST http://{{.SITE}}/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
-
-  test-login-domain:
-    desc: test login with cURL
-    silent: true
-    preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
     - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
       msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
@@ -127,21 +113,12 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    cmds:
-    - curl -i -X POST http://{{.SITE}}/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
-
-  test-password-domain:
-    desc: test login with cURL
-    silent: true
-    preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
     - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
       msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$AUTH_DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
 
-  test-change-password-domain:
+  test-change-password:
     desc: test password change
     silent: true
     preconditions:
@@ -158,30 +135,12 @@ tasks:
     preconditions:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    cmds:
-    - curl -i -X POST http://{{.SITE}}/signout -b {{.COOKIE_FILE}}
-
-  test-logout-domain:
-    desc: test logout with cURL
-    silent: true
-    preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
     - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
       msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
     - curl -i -X POST https://$AUTH_DOMAIN/signout -b {{.COOKIE_FILE}}
 
   test-authorize:
-    desc: test authorization endpoint with cURL
-    silent: false
-    preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    cmds:
-    - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
-
-  test-authorize-domain:
     desc: test authorization endpoint with cURL
     silent: false
     preconditions:
@@ -202,24 +161,6 @@ tasks:
       msg: grep is not installed
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
-    vars:
-      TOKEN_ENDPOINT:
-        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
-      AUTHORIZATION_CODE:
-        sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "http://{{.SITE}}/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
-    cmds:
-    - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
-
-  test-token-domain:
-    desc: test authorization and token endpoint with cURL
-    silent: false
-    preconditions:
-    - sh: "[ ! -z \"$(which awk)\" ]"
-      msg: awk is not installed
-    - sh: "[ ! -z \"$(which grep)\" ]"
-      msg: grep is not installed
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
     - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
       msg: environnment variable AUTH_DOMAIN is not configured
     vars:
@@ -231,24 +172,6 @@ tasks:
       - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
 
   test-step:
-    desc: test authorization and token endpoint with step
-    silent: false
-    preconditions:
-    - sh: "[ ! -z \"$(which step)\" ]"
-      msg: step is not installed
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
-    - sh: "[ ! -z \"$(which jq)\" ]"
-      msg: jq is not installed
-    vars:
-      AUTH_ENDPOINT:
-        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .authorization_endpoint
-      TOKEN_ENDPOINT:
-        sh: xh get http://{{.SITE}}/.well-known/openid-configuration | jq -r .token_endpoint
-    cmds:
-      - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --authorization-endpoint {{.AUTH_ENDPOINT}} --token-endpoint {{.TOKEN_ENDPOINT}}
-
-  test-step-domain:
     desc: test authorization and token endpoint with step
     silent: false
     preconditions:
@@ -282,6 +205,24 @@ tasks:
     - sh: "[ ! -z \"$(which curl)\" ]"
       msg: curl is not installed
     cmd: curl -X POST 'http://{{.SITE}}/clients' -H "content-type:application/json" -H 'accept:application/json, */*;q=0.5' -d '{"client_id":"{{.CLIENT_ID}}","client_secret":"{{.LOGIN_PASSWORD}}","redirect_uri":"{{.REDIRECT_URI}}","user_email":"{{.LOGIN_NAME}}"}' -b {{.COOKIE_FILE}}
+
+  test-oidc-client-list:
+    desc: list OIDC clients
+    preconditions:
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
+    cmd: curl -b {{.COOKIE_FILE}} https://$AUTH_DOMAIN/oidcclients
+
+  test-oidc-client-create:
+    desc: crete OIDC client
+    preconditions:
+    - sh: "[ ! -z \"$(echo $GOOGLE_AUTH_SERVER_CLIENT_ID)\" ]"
+      msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_ID is not configured
+    - sh: "[ ! -z \"$(echo $GOOGLE_AUTH_SERVER_CLIENT_SECRET)\" ]"
+      msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_SECRET is not configured
+    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
+      msg: environnment variable AUTH_DOMAIN is not configured
+    cmd: curl -X POST -b {{.COOKIE_FILE}} -H 'content-type:application/json' -d '{ "name":"google", "client_id":"$GOOGLE_AUTH_SERVER_CLIENT_ID", "client_secret":"$GOOGLE_AUTH_SERVER_CLIENT_SECRET", "redirect_uri":"https://$AUTH_DOMAIN/signin/google/callback", "button_name":"Sign in using Google" }' https://$AUTH_DOMAIN/oidcclients
 
   image:
     desc: Docker build (e.g. task image -- dev)

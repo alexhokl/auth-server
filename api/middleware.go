@@ -75,6 +75,13 @@ func WithDomain(domain string) gin.HandlerFunc {
 	}
 }
 
+func WithOIDC(enable bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("enable_oidc", enable)
+		c.Next()
+	}
+}
+
 func getDatabaseConnectionFromContext(c *gin.Context) (*gorm.DB, bool) {
 	dbConnObj, ok := c.Get("db")
 	if !ok {

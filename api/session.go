@@ -11,10 +11,20 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
+type oidcSession struct {
+	State                   string `json:"state"`
+	PKCECodeChallengeMethod string `json:"pkce_code_challenge_method"`
+	PKCECodeChallenge       string `json:"pkce_code_challenge"`
+	PKCECodeVerifier        string `json:"pkce_code_verifier"`
+	RedirectURI             string `json:"redirect_uri"`
+	IsSignUp                bool   `json:"is_sign_up"`
+}
+
 const sessionEmailKey = "email"
 const sessionIsAuthenticatedKey = "is_authenticated"
 const sessionWebAuthnSessionKey = "webauthn_session"
-const sessionRedirectURLKey = "redirect_url"
+const sessionRedirectURLKey = "redirect_uri"
+const sessionOIDCKey = "oidc"
 
 func getEmailFromSession(c *gin.Context) string {
 	return getEmailFromSessionFromRequest(c.Writer, c.Request)
@@ -110,6 +120,58 @@ func getWebAuthnSession(c *gin.Context) (*webauthn.SessionData, error) {
 	var session webauthn.SessionData
 	jsonhelper.ParseJSONString(sessionValueString, &session)
 	return &session, nil
+}
+
+func setOIDCSession(c *gin.Context, _ string, state string, pkceCodeChallengeMethod string, pkceCodeChallenge string, pkceCodeVerifier string, redirectURI string, isSignUp bool) error {
+	oidcSession := &oidcSession{
+		State:                   state,
+		PKCECodeChallengeMethod: pkceCodeChallengeMethod,
+		PKCECodeChallenge:       pkceCodeChallenge,
+		PKCECodeVerifier:        pkceCodeVerifier,
+		RedirectURI:             redirectURI,
+		IsSignUp:                isSignUp,
+	}
+	json, err := jsonhelper.GetJSONString(oidcSession)
+	if err != nil {
+		return err
+	}
+	return setValuesToSession(c, map[string]interface{}{
+		sessionOIDCKey: json,
+	})
+}
+
+func getOIDCSession(c *gin.Context, _ string) (state string, pkceCodeChallengeMethod string, pkceCodeChallenge string, pkceCodeVerifier string, redirectURI string, isSignUp bool, err error) {
+	oidcSessionValue, ok := getValueFromSession(c, sessionOIDCKey)
+	if !ok {
+		err = fmt.Errorf("session [%s] is not set", sessionOIDCKey)
+		return
+	}
+	sessionValueString, ok := oidcSessionValue.(string)
+	if !ok {
+		err = fmt.Errorf("session [%s] is not a string", sessionOIDCKey)
+		return
+	}
+	var session oidcSession
+	jsonhelper.ParseJSONString(sessionValueString, &session)
+	state = session.State
+	pkceCodeChallengeMethod = session.PKCECodeChallengeMethod
+	pkceCodeChallenge = session.PKCECodeChallenge
+	pkceCodeVerifier = session.PKCECodeVerifier
+	redirectURI = session.RedirectURI
+	isSignUp = session.IsSignUp
+	return
+}
+
+func deleteOIDCSession(c *gin.Context, oidcName string) error {
+	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
+	if err != nil {
+		return err
+	}
+	store.Delete(fmt.Sprintf("oidc_%s", oidcName))
+	if err := store.Save(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func setValuesToSession(c *gin.Context, keyValues map[string]interface{}) error {

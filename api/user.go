@@ -127,7 +127,7 @@ func SignIn(c *gin.Context) {
 
 	challengeURL, _ := url.Parse("/signin/challenge")
 	challengeQuery := challengeURL.Query()
-	challengeQuery.Add("redirect_url", redirectURL)
+	challengeQuery.Add("redirect_uri", redirectURL)
 	challengeURL.RawQuery = challengeQuery.Encode()
 
 	c.Redirect(http.StatusFound, challengeURL.String())
@@ -231,16 +231,58 @@ func SignOut(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func SignInUI(c *gin.Context) {
+	type OIDCClientViewModel struct {
+		Name          string
+		ButtonName    string
+		StartEndpoint string
+	}
+
+	enableOIDC := c.GetBool("enable_oidc")
+	if !enableOIDC {
+		c.HTML(http.StatusOK, "signin.html", gin.H{
+			"clients":    []OIDCClientViewModel{},
+			"hasClients": false,
+		})
+		return
+	}
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	oidcClients, err := db.ListOIDCClients(dbConn)
+	if err != nil {
+		slog.Error(
+			"Unable to list OIDC clients",
+			slog.String("error", err.Error()),
+		)
+		oidcClients = []db.OidcClient{}
+	}
+
+	var viewModels []OIDCClientViewModel
+	for _, c := range oidcClients {
+		viewModels = append(viewModels, OIDCClientViewModel{
+			Name:          c.Name,
+			ButtonName:    c.ButtonName,
+			StartEndpoint: OIDC_START_ENDPOINT,
+		})
+	}
+
+	c.HTML(http.StatusOK, "signin.html", gin.H{
+		"clients":    viewModels,
+		"hasClients": len(viewModels) > 0,
+	})
+}
+
 func SignInChallengeUI(c *gin.Context) {
 	c.File("./assets/signin_challenge.html")
 }
 
 func AuthenticatedUI(c *gin.Context) {
 	c.File("./assets/authenticated.html")
-}
-
-func HomeUI(c *gin.Context) {
-	c.File("./assets/home.html")
 }
 
 func ChangePasswordUI(c *gin.Context) {
@@ -462,7 +504,7 @@ func RedirectToChangePasswordUI(c *gin.Context) {
 }
 
 func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
-	otp, err := generateOneTimePassword()
+	otp, err := generateOneTimePassword(128)
 	if err != nil {
 		return nil, err
 	}
@@ -477,11 +519,12 @@ func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirm
 	}, nil
 }
 
-func generateOneTimePassword() (string, error) {
-	buf := make([]byte, 128)
+func generateOneTimePassword(lengthRandomBytes int) (string, error) {
+	buf := make([]byte, lengthRandomBytes)
 	_, err := rand.Read(buf)
 	if err != nil {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(buf), nil
 }
+

@@ -71,3 +71,11 @@ type ClientScope struct {
 	Client    Client `gorm:"foreignKey:ClientID"`
 	Scope     Scope  `gorm:"foreignKey:ScopeName"`
 }
+
+type OidcClient struct {
+	Name 		 string `gorm:"primary_key;unique;not null"`
+	ClientID     string `gorm:"not null"`
+	ClientSecret string `gorm:"not null"`
+	RedirectURI  string `gorm:"not null"`
+	ButtonName   string `gorm:"not null"`
+}

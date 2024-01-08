@@ -15,6 +15,18 @@
   <section>
     <form action="" method="post" id="signin">
       <h1>Sign In</h1>
+      <section id="oidc">
+        {{ range $client := .clients }}
+        <div>
+            <a href="/signin/{{ $client.Name }}/{{ $client.StartEndpoint }}">{{ $client.ButtonName }}</a>
+        </div>
+        {{ end }}
+        {{ if .hasClients }}
+        <div>
+            Or log in with email
+        </div>
+        {{ end }}
+      </section>
       <section>
         <div>
           <label for="email">Email</label>
@@ -30,7 +42,6 @@
   <footer>
   </footer>
 
-  <!-- <script src="/assets/scripts.js"></script> -->
 </body>
 </html>
 
