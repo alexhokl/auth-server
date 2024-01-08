@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <title>Sign In</title>
@@ -8,6 +9,7 @@
   <meta name="description" content="Sign In">
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
+
 <body>
   <header>
   </header>
@@ -19,24 +21,27 @@
         <div>
           <label for="password">Password</label>
           <input type="password" name="password" id="current-password" autocomplete="current-password" required>
-          <button id="toggle-password" type="button" aria-label="Show password as plain text. Warning: this will display your password on the screen.">Show password</button>
+          <button id="toggle-password" type="button"
+            aria-label="Show password as plain text. Warning: this will display your password on the screen.">Show
+            password</button>
         </div>
         <div>
           <button type="submit" form="signin" value="Submit">Sign In</button>
         </div>
         <hr />
-        <div>
-            <button id="login" onclick="loginByKey()">Sign In Password-less</button>
-        </div>
       </section>
     </form>
-  </section>
+    <section class="centered-section">
+      <div>
+        <button id="login" onclick="loginByKey()">Sign In Password-less</button>
+      </div>
+    </section>
 
-  <footer>
-  </footer>
+    <footer>
+    </footer>
 
-  <script src="/assets/http.js"></script>
-  <script src="/assets/signin.js"></script>
+    <script src="/assets/http.js"></script>
+    <script src="/assets/signin.js"></script>
 </body>
-</html>
 
+</html>
