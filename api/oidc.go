@@ -25,7 +25,6 @@ const (
 	Google    OIDCProvider = "google"
 	Facebook  OIDCProvider = "facebook"
 	Microsoft OIDCProvider = "microsoft"
-	Instagram OIDCProvider = "instagram"
 )
 
 func RedirectToOIDCEndpoint(c *gin.Context) {
@@ -371,12 +370,6 @@ func getOAuthConfig(oidcClient *db.OidcClient) (*oauth2.Config, error) {
 		// 	Scopes:   []string{"wl.basic", "wl.emails"},
 		// }
 		return nil, fmt.Errorf("not implemented")
-	case Instagram:
-		// config = &oauth2.Config{
-		// 	Endpoint: instagram.Endpoint,
-		// 	Scopes:   []string{"basic"},
-		// }
-		return nil, fmt.Errorf("not implemented")
 	default:
 		return nil, fmt.Errorf("unsupported OIDC client: %s", oidcClient.Name)
 	}
@@ -418,11 +411,6 @@ func getUserInformationFromOIDCProviderCallback(oidcClient *db.OidcClient, token
 		return "", fmt.Errorf("not implemented")
 	case Microsoft:
 		slog.Info("Microsoft",
-			slog.Any("token", token),
-		)
-		return "", fmt.Errorf("not implemented")
-	case Instagram:
-		slog.Info("Instagram",
 			slog.Any("token", token),
 		)
 		return "", fmt.Errorf("not implemented")
