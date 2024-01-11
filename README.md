@@ -47,34 +47,8 @@ go install github.com/swaggo/swag/cmd/swag@latest
 
 ### Using localhost
 
-Note that port `8080` and `8088` will be used.
-
-To setup the API and its databases
-
-```sh
-task up-db
-task run
-```
-
-To create user and OAuth client
-
-```sh
-task test-client-create
-```
-
-To test sign-in and getting access token
-
-```sh
-task test-login
-task test-password
-task test-token
-```
-
-To test WebAuthn (FIDO2) registration
-
-1. Sign-in using password via `http://localhost:8080/`
-2. Once authenticated, press button `Register key` via
-   `http://localhost:8080/authenticated/`
+Using localhost is not recommended as it is hard, if not impossible, do test the
+workflow of webauthn and some of the OIDC providers.
 
 ### Using MagicDNS of Tailscale and Caddy
 
@@ -110,11 +84,31 @@ To create user and OAuth client
 task test-client-create
 ```
 
-To test sign-in and getting access token
+To test sign-in and access token retrieval
 
 ```sh
 task test-step-domain
 ```
+
+or
+
+```sh
+task test-login
+task test-password
+task test-token
+```
+
+To test WebAuthn (FIDO2) registration
+
+1. Sign-in using password via `https://mac14.husky-bee.ts.net/`
+2. Once authenticated, press button `Register key` via
+   `https://mac14.husky-bee.ts.net/authenticated/`
+
+To test login via OIDC provider
+
+1. Ensure environment variable `AUTH_ENABLE_OIDC` is set to `true`.
+2. Setup a OIDC provider via `POST /oidcclients` (currently only `google` is
+   supported).
 
 ### Webauthn (FIDO2)
 
