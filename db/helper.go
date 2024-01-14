@@ -1,49 +1,14 @@
 package db
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/spf13/viper"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-func GetDatabaseDailector() (gorm.Dialector, error) {
-	path := viper.GetString("database_connection_string_file_path")
-	if path == "" {
-		return nil, fmt.Errorf("file path to database connection string is not set")
-	}
-	connectionString, err := iohelper.ReadFirstLineFromFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read password: %w", err)
-	}
-	if connectionString == "" {
-		return nil, fmt.Errorf("database connection string is empty")
-	}
-
-	return postgres.Open(connectionString), nil
-}
-
-func GetDatabaseDialectorFromConnection(conn *sql.DB) gorm.Dialector {
-	return postgres.New(postgres.Config{
-		Conn: conn,
-		DriverName: "postgres",
-	})
-}
-
-func GetDatabaseConnection(dialector gorm.Dialector) (*gorm.DB, error) {
-	conn, err := gorm.Open(dialector, &gorm.Config{})
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
 
 func Migrate(db *gorm.DB) {
 	db.AutoMigrate(&User{})

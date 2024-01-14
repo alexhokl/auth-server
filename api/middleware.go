@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/alexhokl/auth-server/db"
+	"github.com/alexhokl/helper/database"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -38,7 +39,7 @@ func RequiredAdminAccess() gin.HandlerFunc {
 
 func WithDatabaseConnection(dialector gorm.Dialector) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		dbConn, err := db.GetDatabaseConnection(dialector)
+		dbConn, err := database.GetDatabaseConnection(dialector)
 		if err != nil {
 			handleInternalError(c, err, "Unable to connect to database")
 			return

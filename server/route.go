@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/alexhokl/auth-server/api"
-	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/auth-server/docs"
 	"github.com/alexhokl/auth-server/store"
+	"github.com/alexhokl/helper/database"
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/manage"
@@ -23,7 +23,7 @@ import (
 )
 
 func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string, enableOIDC bool, sessionCookieName string) (*gin.Engine, error) {
-	dbConn, err := db.GetDatabaseConnection(dialector)
+	dbConn, err := database.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
 	}

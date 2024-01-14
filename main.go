@@ -15,6 +15,7 @@ import (
 	"github.com/alexhokl/auth-server/jwthelper"
 	authserver "github.com/alexhokl/auth-server/server"
 	"github.com/alexhokl/helper/cli"
+	"github.com/alexhokl/helper/database"
 	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -43,7 +44,9 @@ func main() {
 
 	isDebug := !viper.GetBool("release")
 
-	dialector, err := db.GetDatabaseDailector()
+	connectionStringFilePath := viper.GetString("database_connection_string_file_path")
+
+	dialector, err := database.GetDatabaseDailector(connectionStringFilePath)
 	if err != nil {
 		slog.Error(
 			"Unable to get database dailector",
@@ -52,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dbConn, err := db.GetDatabaseConnection(dialector)
+	dbConn, err := database.GetDatabaseConnection(dialector)
 	if err != nil {
 		slog.Error(
 			"Unable to connect to database",
