@@ -33,6 +33,9 @@ const tokenGarbageCollectionIntervalInSeconds = 600
 func main() {
 	setDefaultSettings()
 
+	// create a context which its Done channel will be closed when
+	// the program receives a SIGINT or SIGTERM signal
+	// or when stop function is called
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -205,6 +208,8 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// tries to shut down the server gracefully
 	if err := httpServer.Shutdown(ctx); err != nil {
 		slog.Error("Server forced to shutdown: ", slog.String("error", err.Error()))
 	}
