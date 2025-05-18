@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   PASSWORD: Passw0rd
@@ -12,6 +12,7 @@ vars:
   CLIENT_ID: cli
 
 env:
+  APP_NAME: auth-server
   AUTH_PORT: "{{.PORT}}"
   AUTH_REDIS_SESSION_DB: auth-session
   AUTH_REDIS_TOKEN_DB: auth-token
@@ -20,7 +21,6 @@ env:
   PGPASSWORD: "{{.PASSWORD}}"
 
 tasks:
-
   default:
     cmds:
       - task: build
@@ -28,7 +28,7 @@ tasks:
   build:
     desc: Go build without output
     cmds:
-    - go build -tags=nomsgpack -o /dev/null
+      - go build -tags=nomsgpack -o /dev/null
 
   run-debug:
     desc: Run with debug logs
@@ -54,7 +54,7 @@ tasks:
       AUTH_ENABLE_OIDC: true
       AUTH_SESSION_COOKIE_NAME: "auth-server"
     cmds:
-    - go run -tags=nomsgpack main.go
+      - go run -tags=nomsgpack main.go
 
   run:
     desc: Run without debug logs
@@ -83,71 +83,71 @@ tasks:
       AUTH_ENABLE_OIDC: true
       AUTH_SESSION_COOKIE_NAME: "auth-server"
     cmds:
-    - go run -tags=nomsgpack main.go
+      - go run -tags=nomsgpack main.go
 
   test-signup:
     desc: test signup with xh
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which xh)" ]'
+        msg: xh is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" https://$AUTH_DOMAIN/signup
+      - curl -X POST -d "email={{.LOGIN_NAME}}&password={{.LOGIN_PASSWORD}}" https://$AUTH_DOMAIN/signup
 
   test-login:
     desc: test login with cURL
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$AUTH_DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
+      - curl -i -X POST https://$AUTH_DOMAIN/signin -d email={{.LOGIN_NAME}} -d password={{.LOGIN_PASSWORD}} -c {{.COOKIE_FILE}}
 
   test-password:
     desc: test login with cURL
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$AUTH_DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
+      - curl -i -X POST https://$AUTH_DOMAIN/signin/challenge -d password={{.LOGIN_PASSWORD}} -b {{.COOKIE_FILE}}
 
   test-change-password:
     desc: test password change
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST -b {{.COOKIE_FILE}} -d "current_password={{.LOGIN_PASSWORD}}&new_password={{.LOGIN_NAME}}" https://$AUTH_DOMAIN/changepassword
+      - curl -i -X POST -b {{.COOKIE_FILE}} -d "current_password={{.LOGIN_PASSWORD}}&new_password={{.LOGIN_NAME}}" https://$AUTH_DOMAIN/changepassword
 
   test-logout:
     desc: test logout with cURL
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
-    - curl -i -X POST https://$AUTH_DOMAIN/signout -b {{.COOKIE_FILE}}
+      - curl -i -X POST https://$AUTH_DOMAIN/signout -b {{.COOKIE_FILE}}
 
   test-authorize:
     desc: test authorization endpoint with cURL
     silent: false
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
       - curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$AUTH_DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code"
 
@@ -155,14 +155,14 @@ tasks:
     desc: test authorization and token endpoint with cURL
     silent: false
     preconditions:
-    - sh: "[ ! -z \"$(which awk)\" ]"
-      msg: awk is not installed
-    - sh: "[ ! -z \"$(which grep)\" ]"
-      msg: grep is not installed
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which awk)" ]'
+        msg: awk is not installed
+      - sh: '[ ! -z "$(which grep)" ]'
+        msg: grep is not installed
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     vars:
       AUTHORIZATION_CODE:
         sh: curl -sSk -X GET -b {{.COOKIE_FILE}} -D - -o /dev/null "https://$AUTH_DOMAIN/authorize?client_id={{.CLIENT_ID}}&redirect_uri={{.REDIRECT_URI}}&response_type=code" | grep -i Location | awk '{print $2 }' | awk -F '?' '{print $2}' | awk -F '=' '{print $2}'
@@ -175,10 +175,10 @@ tasks:
     desc: test authorization and token endpoint with step
     silent: false
     preconditions:
-    - sh: "[ ! -z \"$(which step)\" ]"
-      msg: step is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which step)" ]'
+        msg: step is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
       - step oauth --client-id {{.CLIENT_ID}} --client-secret {{.LOGIN_PASSWORD}} --listen :8088 --provider https://$AUTH_DOMAIN
 
@@ -186,113 +186,113 @@ tasks:
     desc: test user list with curl
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
     cmd: curl -i http://{{.SITE}}/users -b {{.COOKIE_FILE}}
 
   test-client-list:
     desc: test client list with curl
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
     cmd: curl -i http://{{.SITE}}/clients -b {{.COOKIE_FILE}}
 
   test-client-create:
     desc: test client create with curl
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which curl)\" ]"
-      msg: curl is not installed
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
     cmd: curl -X POST 'http://{{.SITE}}/clients' -H "content-type:application/json" -H 'accept:application/json, */*;q=0.5' -d '{"client_id":"{{.CLIENT_ID}}","client_secret":"{{.LOGIN_PASSWORD}}","redirect_uri":"{{.REDIRECT_URI}}","user_email":"{{.LOGIN_NAME}}"}' -b {{.COOKIE_FILE}}
 
   test-oidc-client-list:
     desc: list OIDC clients
     preconditions:
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmd: curl -b {{.COOKIE_FILE}} https://$AUTH_DOMAIN/oidcclients
 
   test-oidc-client-create:
     desc: crete OIDC client
     preconditions:
-    - sh: "[ ! -z \"$(echo $GOOGLE_AUTH_SERVER_CLIENT_ID)\" ]"
-      msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_ID is not configured
-    - sh: "[ ! -z \"$(echo $GOOGLE_AUTH_SERVER_CLIENT_SECRET)\" ]"
-      msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_SECRET is not configured
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(echo $GOOGLE_AUTH_SERVER_CLIENT_ID)" ]'
+        msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_ID is not configured
+      - sh: '[ ! -z "$(echo $GOOGLE_AUTH_SERVER_CLIENT_SECRET)" ]'
+        msg: environnment variable GOOGLE_AUTH_SERVER_CLIENT_SECRET is not configured
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmd: curl -X POST -b {{.COOKIE_FILE}} -H 'content-type:application/json' -d '{ "name":"google", "client_id":"$GOOGLE_AUTH_SERVER_CLIENT_ID", "client_secret":"$GOOGLE_AUTH_SERVER_CLIENT_SECRET", "redirect_uri":"https://$AUTH_DOMAIN/signin/google/callback", "button_name":"Sign in using Google" }' https://$AUTH_DOMAIN/oidcclients
 
   image:
     desc: Docker build (e.g. task image -- dev)
     silent: true
     preconditions:
-    - test -f Dockerfile
-    - sh: docker version
+      - test -f Dockerfile
+      - sh: docker version
     cmds:
-    - docker build --target production -t docker.io/alexhokl/auth-server:{{ splitArgs .CLI_ARGS | first }} .
+      - docker build --target production -t docker.io/alexhokl/auth-server:{{ splitArgs .CLI_ARGS | first }} .
 
   up-db:
     desc: Spin up Docker containers of databases
     silent: true
     preconditions:
-    - test -f docker-compose.yml
-    - sh: docker version
+      - test -f docker-compose.yml
+      - sh: docker version
     cmds:
-    - docker-compose up db redis -d
+      - docker-compose up db redis -d
 
   up:
     desc: Spin up all Docker containers
     silent: true
     preconditions:
-    - test -f docker-compose.yml
+      - test -f docker-compose.yml
     cmds:
-    - docker-compose up -d
+      - docker-compose up -d
 
   down:
     desc: Stop and remove all Docker containers
     silent: true
     preconditions:
-    - test -f docker-compose.yml
-    - sh: docker version
+      - test -f docker-compose.yml
+      - sh: docker version
     cmds:
-    - docker-compose down
+      - docker-compose down
 
   caddy:
     desc: Start reverse proxy to port {{.PORT}}
     silent: true
     preconditions:
-    - test -f Caddyfile
+      - test -f Caddyfile
     cmds:
-    - caddy run --config Caddyfile
+      - caddy run --config Caddyfile
 
   swagger:
     desc: Generate code of Swagger 2.0 documentation
     silent: true
     cmds:
-    - swag init
+      - swag init
 
   swagger-format:
     desc: Format Swagger comments in Go code
     silent: true
     cmds:
-    - swag fmt
+      - swag fmt
 
   swagger-open:
     desc: Open Swagger documentation in a browser
     silent: true
     cmds:
-    - cmd: open http://{{.SITE}}/swagger/index.html
-      platforms: [darwin, linux]
-    - cmd: explorer http://{{.SITE}}/swagger/index.html
-      platforms: [windows]
+      - cmd: open http://{{.SITE}}/swagger/index.html
+        platforms: [darwin, linux]
+      - cmd: explorer http://{{.SITE}}/swagger/index.html
+        platforms: [windows]
 
   test:
     desc: Run unit tests
     silent: true
     cmds:
-    - go test -v ./...
+      - go test -v ./...
 
   commit:
     desc: Show the current git commit ID
@@ -301,26 +301,26 @@ tasks:
       GIT_COMMIT:
         sh: git rev-parse --short HEAD
     cmds:
-    - echo {{.GIT_COMMIT}}
+      - echo {{.GIT_COMMIT}}
 
   tidy:
     desc: Tidy up Go modules
     cmds:
-    - go mod tidy
+      - go mod tidy
 
   list-tokens:
     desc: List keys of tokens stored on Redis
     env:
       REDISCLI_AUTH: "{{.PASSWORD}}"
     cmds:
-    - redis-cli -h localhost KEYS auth-token\*
+      - redis-cli -h localhost KEYS auth-token\*
 
   list-sessions:
     desc: List keys of session stored on Redis
     env:
       REDISCLI_AUTH: "{{.PASSWORD}}"
     cmds:
-    - redis-cli -h localhost KEYS auth-session\*
+      - redis-cli -h localhost KEYS auth-session\*
 
   # get-token:
   #   desc: Get value of code/token using key of Redis
@@ -337,8 +337,8 @@ tasks:
     desc: Shows configuration of OpenID
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
+      - sh: '[ ! -z "$(which xh)" ]'
+        msg: xh is not installed
     cmds:
       - xh http://{{.SITE}}/.well-known/openid-configuration
 
@@ -346,10 +346,10 @@ tasks:
     desc: Shows configuration of OpenID
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which xh)" ]'
+        msg: xh is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
       - xh https://$AUTH_DOMAIN/.well-known/openid-configuration
 
@@ -357,8 +357,8 @@ tasks:
     desc: Shows configuration of WebFinger
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
+      - sh: '[ ! -z "$(which xh)" ]'
+        msg: xh is not installed
     cmds:
       - xh http://{{.SITE}}/.well-known/webfinger
 
@@ -366,10 +366,10 @@ tasks:
     desc: Shows configuration of WebFinger
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which xh)\" ]"
-      msg: xh is not installed
-    - sh: "[ ! -z \"$(echo $AUTH_DOMAIN)\" ]"
-      msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "$(which xh)" ]'
+        msg: xh is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
     cmds:
       - xh https://$AUTH_DOMAIN/.well-known/webfinger
 
@@ -377,76 +377,84 @@ tasks:
     desc: Generate keys
     interactive: true
     preconditions:
-    - test -d keys
+      - test -d keys
     cmds:
-    - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256" --password-file keys/passphrase --force
+      - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256" --password-file keys/passphrase --force
 
   db-list-clients:
     desc: list clients in database
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which psql)\" ]"
-      msg: psql is not installed
-    - sh: "[ ! -z \"$(which cat)\" ]"
-      msg: cat is not installed
+      - sh: '[ ! -z "$(which psql)" ]'
+        msg: psql is not installed
+      - sh: '[ ! -z "$(which cat)" ]'
+        msg: cat is not installed
     vars:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM clients"
+      - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM clients"
 
   db-list-users:
     desc: list users in database
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which psql)\" ]"
-      msg: psql is not installed
-    - sh: "[ ! -z \"$(which cat)\" ]"
-      msg: cat is not installed
+      - sh: '[ ! -z "$(which psql)" ]'
+        msg: psql is not installed
+      - sh: '[ ! -z "$(which cat)" ]'
+        msg: cat is not installed
     vars:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM users"
+      - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM users"
 
   db-list-user-credentials:
     desc: list user credentials in database
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which psql)\" ]"
-      msg: psql is not installed
-    - sh: "[ ! -z \"$(which cat)\" ]"
-      msg: cat is not installed
+      - sh: '[ ! -z "$(which psql)" ]'
+        msg: psql is not installed
+      - sh: '[ ! -z "$(which cat)" ]'
+        msg: cat is not installed
     vars:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM user_credentials"
+      - psql "{{.CONNECTION_STRING}}" -c "SELECT * FROM user_credentials"
 
   db-remove-all-user-credentials:
     desc: remove all user credentials in database
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which psql)\" ]"
-      msg: psql is not installed
-    - sh: "[ ! -z \"$(which cat)\" ]"
-      msg: cat is not installed
+      - sh: '[ ! -z "$(which psql)" ]'
+        msg: psql is not installed
+      - sh: '[ ! -z "$(which cat)" ]'
+        msg: cat is not installed
     vars:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials"
+      - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials"
 
   db-remove-all:
     desc: remove all data in database
     silent: true
     preconditions:
-    - sh: "[ ! -z \"$(which psql)\" ]"
-      msg: psql is not installed
-    - sh: "[ ! -z \"$(which cat)\" ]"
-      msg: cat is not installed
+      - sh: '[ ! -z "$(which psql)" ]'
+        msg: psql is not installed
+      - sh: '[ ! -z "$(which cat)" ]'
+        msg: cat is not installed
     vars:
       CONNECTION_STRING:
         sh: cat keys/database_connection_string
     cmds:
-    - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials; TRUNCATE TABLE client_scopes; DELETE FROM scopes; DELETE FROM clients; TRUNCATE TABLE user_roles; DELETE FROM roles; TRUNCATE TABLE user_confirmations; DELETE FROM users;"
+      - psql "{{.CONNECTION_STRING}}" -c "TRUNCATE TABLE user_credentials; TRUNCATE TABLE client_scopes; DELETE FROM scopes; DELETE FROM clients; TRUNCATE TABLE user_roles; DELETE FROM roles; TRUNCATE TABLE user_confirmations; DELETE FROM users;"
+
+  completion-mac:
+    desc: Generate bash completion and save to homebrew
+    cmd: $APP_NAME completion bash > /opt/homebrew/etc/bash_completion.d/$APP_NAME
+
+  completion-linux:
+    desc: Generate bash completion and save configuration directory
+    cmd: $APP_NAME completion bash | sudo tee /etc/bash_completion.d/$APP_NAME
