@@ -292,7 +292,7 @@ tasks:
     desc: Run unit tests
     silent: true
     cmds:
-      - go test -v ./...
+      - go test ./...
 
   commit:
     desc: Show the current git commit ID
