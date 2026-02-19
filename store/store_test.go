@@ -33,8 +33,8 @@ func TestStore_GetByID_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "is_public", "user_email"}).
 		AddRow("test-client", "secret123", "http://localhost:8080/callback", false, "user@test.com")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(rows)
 
 	clientStore := store.NewClientStore(dbConn)
@@ -53,8 +53,8 @@ func TestStore_GetByID_Found(t *testing.T) {
 func TestStore_GetByID_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("nonexistent").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("nonexistent", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	clientStore := store.NewClientStore(dbConn)
@@ -71,8 +71,8 @@ func TestStore_GetByID_PublicClient(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "is_public", "user_email"}).
 		AddRow("public-client", "", "http://localhost:8080/callback", true, "user@test.com")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("public-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("public-client", 1).
 		WillReturnRows(rows)
 
 	clientStore := store.NewClientStore(dbConn)

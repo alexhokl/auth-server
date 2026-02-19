@@ -112,8 +112,8 @@ func TestCreateClient_UserNotFound_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/clients", CreateClient)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("notfound@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("notfound@test.com", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"email", "password_hash", "display_name", "web_authn_user_id", "is_enabled"}))
 
 	body := `{"client_id": "test-client", "client_secret": "secret", "redirect_uri": "http://localhost/callback", "user_email": "notfound@test.com"}`
@@ -130,8 +130,8 @@ func TestCreateClient_ClientAlreadyExists_ReturnsBadRequest(t *testing.T) {
 	router.POST("/clients", CreateClient)
 
 	// User exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("alex@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"email", "password_hash", "display_name", "web_authn_user_id", "is_enabled"}).
 			AddRow("alex@test.com", []byte("hash"), "Alex", nil, true))
 	// Preloads for user
@@ -143,8 +143,8 @@ func TestCreateClient_ClientAlreadyExists_ReturnsBadRequest(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "role_name"}))
 
 	// Client already exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}).
 			AddRow("test-client", "existing-secret", "http://existing/callback", "alex@test.com", false))
 
@@ -165,8 +165,8 @@ func TestCreateClient_Success_ReturnsOK(t *testing.T) {
 	router.POST("/clients", CreateClient)
 
 	// User exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("alex@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"email", "password_hash", "display_name", "web_authn_user_id", "is_enabled"}).
 			AddRow("alex@test.com", []byte("hash"), "Alex", nil, true))
 	// Preloads for user
@@ -178,8 +178,8 @@ func TestCreateClient_Success_ReturnsOK(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "role_name"}))
 
 	// Client doesn't exist
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("new-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("new-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}))
 
 	// Create client - GORM column order: client_id, client_secret, redirect_uri, is_public, user_email
@@ -221,8 +221,8 @@ func TestUpdateClient_DatabaseError_ReturnsNotFound(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Return a database error (not ErrRecordNotFound which is caught by GetClient)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("nonexistent").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("nonexistent", 1).
 		WillReturnError(gorm.ErrInvalidDB)
 
 	body := `{"client_secret": "newsecret"}`
@@ -240,8 +240,8 @@ func TestUpdateClient_ClientNotFound_ReturnsNotFound(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Return empty result (client not found)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("nonexistent").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("nonexistent", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}))
 
 	body := `{"client_secret": "newsecret"}`
@@ -258,8 +258,8 @@ func TestUpdateClient_InvalidJSON_ReturnsBadRequest(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Client exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}).
 			AddRow("test-client", "secret", "http://localhost/callback", "alex@test.com", false))
 
@@ -276,8 +276,8 @@ func TestUpdateClient_UpdateSecret_ReturnsOK(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Client exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}).
 			AddRow("test-client", "oldsecret", "http://localhost/callback", "alex@test.com", false))
 
@@ -310,8 +310,8 @@ func TestUpdateClient_UpdateRedirectUri_ReturnsOK(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Client exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}).
 			AddRow("test-client", "secret", "http://old/callback", "alex@test.com", false))
 
@@ -341,8 +341,8 @@ func TestUpdateClient_UpdateUserEmail_ReturnsOK(t *testing.T) {
 	router.PATCH("/clients/:client_id", UpdateClient)
 
 	// Client exists
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("test-client").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("test-client", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "user_email", "is_public"}).
 			AddRow("test-client", "secret", "http://localhost/callback", "old@test.com", false))
 

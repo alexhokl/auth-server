@@ -69,8 +69,8 @@ func TestGetUser_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"email", "password_hash", "display_name", "web_authn_user_id", "is_enabled"}).
 		AddRow("alex@test.com", []byte("hash"), "Alex", userID, true)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("alex@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
 		WillReturnRows(rows)
 	// GORM clause.Associations preloads all associations
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE "user_credentials"."user_email" = $1`)).
@@ -93,8 +93,8 @@ func TestGetUser_Found(t *testing.T) {
 func TestGetUser_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("notfound@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("notfound@test.com", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	user, err := db.GetUser(dbConn, "notfound@test.com")
@@ -191,8 +191,8 @@ func TestGetClient_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"client_id", "client_secret", "redirect_uri", "is_public", "user_email"}).
 		AddRow("cli1", "secret1", "http://localhost:8080", false, "alex@test.com")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("cli1").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("cli1", 1).
 		WillReturnRows(rows)
 
 	client, err := db.GetClient(dbConn, "cli1")
@@ -207,8 +207,8 @@ func TestGetClient_Found(t *testing.T) {
 func TestGetClient_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1`)).
-		WithArgs("notfound").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("notfound", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	client, err := db.GetClient(dbConn, "notfound")
@@ -416,8 +416,8 @@ func TestGetConfirmation_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 		AddRow("alex@test.com", otp, expiryTime, 0)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs(otp).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs(otp, 1).
 		WillReturnRows(rows)
 
 	confirmation, err := db.GetConfirmation(dbConn, otp)
@@ -432,8 +432,8 @@ func TestGetConfirmation_Found(t *testing.T) {
 func TestGetConfirmation_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("invalid").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("invalid", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	confirmation, err := db.GetConfirmation(dbConn, "invalid")
@@ -481,8 +481,8 @@ func TestGetOIDCClient_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}).
 		AddRow("google", "google-client-id", "google-secret", "http://localhost/callback", "Sign in with Google")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients" WHERE name = $1`)).
-		WithArgs("google").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients" WHERE name = $1 ORDER BY "oidc_clients"."name" LIMIT $2`)).
+		WithArgs("google", 1).
 		WillReturnRows(rows)
 
 	client, err := db.GetOIDCClient(dbConn, "google")
@@ -496,8 +496,8 @@ func TestGetOIDCClient_Found(t *testing.T) {
 func TestGetOIDCClient_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients" WHERE name = $1`)).
-		WithArgs("notfound").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients" WHERE name = $1 ORDER BY "oidc_clients"."name" LIMIT $2`)).
+		WithArgs("notfound", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	client, err := db.GetOIDCClient(dbConn, "notfound")
@@ -586,8 +586,8 @@ func TestDeleteCredential_Success(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
 		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
-		WithArgs("alex@test.com", credID).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
 		WillReturnRows(rows)
 
 	// Then, delete the credential
@@ -608,8 +608,8 @@ func TestDeleteCredential_NotFound(t *testing.T) {
 
 	credID := []byte("notfound")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
-		WithArgs("alex@test.com", credID).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	err := db.DeleteCredential(dbConn, "alex@test.com", credID)
@@ -630,8 +630,8 @@ func TestUpdateCredential_Success(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
 		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
-		WithArgs("alex@test.com", credID).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
 		WillReturnRows(rows)
 
 	// Then, update the credential - use AnyArg() for all arguments since GORM generates all fields
@@ -669,8 +669,8 @@ func TestUpdateCredential_NotFound(t *testing.T) {
 
 	credID := []byte("notfound")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
-		WithArgs("alex@test.com", credID).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "New Name")

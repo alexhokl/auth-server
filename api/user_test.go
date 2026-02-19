@@ -291,8 +291,8 @@ func TestResetPassword_UserNotFound_ReturnsOK(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/resetpassword", ResetPassword)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1`)).
-		WithArgs("notfound@test.com").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("notfound@test.com", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	body := `{"email": "notfound@test.com"}`
@@ -311,8 +311,8 @@ func TestConfirm_NotFound_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/confirm/:otp", Confirm)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("invalid-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("invalid-otp", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	w := httptest.NewRecorder()
@@ -328,8 +328,8 @@ func TestConfirm_Expired_ReturnsGone(t *testing.T) {
 
 	// Return an expired confirmation
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("expired-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("expired-otp", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
 
@@ -346,8 +346,8 @@ func TestConfirm_Valid_ReturnsNoContent(t *testing.T) {
 
 	// Return a valid confirmation
 	futureTime := time.Now().Add(1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("valid-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("valid-otp", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 			AddRow("alex@test.com", "valid-otp", futureTime, 0))
 
@@ -375,8 +375,8 @@ func TestConfirmResetPassword_NotFound_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/resetpassword/:otp", ConfirmResetPassword)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("invalid-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("invalid-otp", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	w := httptest.NewRecorder()
@@ -391,8 +391,8 @@ func TestConfirmResetPassword_Expired_ReturnsGone(t *testing.T) {
 	router.GET("/resetpassword/:otp", ConfirmResetPassword)
 
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("expired-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("expired-otp", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
 
@@ -421,8 +421,8 @@ func TestNewPassword_InvalidOTP_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/newpassword", NewPassword)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("invalid-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("invalid-otp", 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	form := url.Values{}
@@ -442,8 +442,8 @@ func TestNewPassword_ExpiredOTP_ReturnsGone(t *testing.T) {
 	router.POST("/newpassword", NewPassword)
 
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1`)).
-		WithArgs("expired-otp").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("expired-otp", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
 
