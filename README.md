@@ -130,6 +130,59 @@ encoding.
 }
 ```
 
+## Current FIDO2/WebAuthn Support
+
+The auth-server has a complete FIDO2/WebAuthn implementation with the following capabilities:
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Credential Registration | Complete | Users can register security keys/passkeys |
+| Passwordless Authentication | Complete | Login using WebAuthn credentials |
+| Credential Management | Complete | List, rename, and delete credentials |
+| Cross-platform Authenticators | Supported | USB keys, NFC, BLE, platform authenticators |
+| User Verification | Required | PIN/biometric required |
+| Clone Detection | Implemented | Sign counter tracking |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| /fido/register/challenge | POST | Start registration (auth required) |
+| /fido/register | POST | Complete registration |
+| /fido/signin/challenge | POST | Start authentication |
+| /fido/signin | POST | Complete authentication |
+| /fido/credentials | GET | List user's credentials |
+| /fido/credentials/:id | DELETE | Delete a credential |
+| /fido/credentials/:id | PATCH | Rename a credential |
+
+### Authentication Flow
+
+1. User enters email at /signin → stored in session
+2. Client requests challenge from /fido/signin/challenge
+3. Browser's navigator.credentials.get() prompts user
+4. Server validates assertion at /fido/signin
+5. Session marked authenticated, optional redirect
+
+### WebAuthn Configuration
+
+- `AuthenticatorAttachment`: `protocol.CrossPlatform` (Hardware keys supported)
+- `ResidentKey`: `protocol.ResidentKeyRequirementDiscouraged`
+- `UserVerification`: `protocol.VerificationRequired` (PIN/biometric required)
+- `AttestationPreference`: `protocol.PreferDirectAttestation`
+
+### Storage
+
+- Credentials: PostgreSQL via GORM (UserCredential model)
+- Sessions/Challenges: Redis (temporary challenge storage)
+- User binding: Via WebAuthnUserID (UUID) on User model
+
+### Frontend
+
+JavaScript implementation in assets/ handles:
+- Base64URL encoding/decoding
+- WebAuthn API calls (navigator.credentials.create/get)
+- Credential table rendering and management UI
+
 ## References
 
 - [Sign-in form best practices](https://web.dev/sign-in-form-best-practices/)
