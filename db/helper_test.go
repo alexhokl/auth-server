@@ -506,3 +506,519 @@ func TestGetOIDCClient_NotFound(t *testing.T) {
 	assert.Nil(t, client)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// ChangePassword Tests
+
+func TestChangePassword_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	newPasswordHash := []byte("newhash")
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "password_hash"=$1 WHERE email = $2`)).
+		WithArgs(newPasswordHash, "alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.ChangePassword(dbConn, "alex@test.com", newPasswordHash)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// CreateCredential Tests
+
+func TestCreateCredential_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credential := &db.UserCredential{
+		ID:              []byte("cred123"),
+		PublicKey:       []byte("pubkey"),
+		AttestationType: "direct",
+		UserPresent:     true,
+		UserVerified:    true,
+		BackupEligible:  false,
+		BackupState:     false,
+		AAGUID:          []byte("aaguid"),
+		SignCount:       0,
+		CloneWarning:    false,
+		Attachment:      "cross-platform",
+		UserEmail:       "alex@test.com",
+		FriendlyName:    "key 0",
+	}
+
+	// Note: Transport is (NULL) in the query and doesn't count as a placeholder argument
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_credentials"`)).
+		WithArgs(
+			credential.ID,
+			credential.PublicKey,
+			credential.AttestationType,
+			// Transport is (NULL) - no placeholder
+			credential.UserPresent,
+			credential.UserVerified,
+			credential.BackupEligible,
+			credential.BackupState,
+			credential.AAGUID,
+			credential.SignCount,
+			credential.CloneWarning,
+			credential.Attachment,
+			credential.UserEmail,
+			credential.FriendlyName,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.CreateCredential(dbConn, credential)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// DeleteCredential Tests
+
+func TestDeleteCredential_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	// First, search for the credential
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
+		WithArgs("alex@test.com", credID).
+		WillReturnRows(rows)
+
+	// Then, delete the credential
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_credentials" WHERE "user_credentials"."id" = $1`)).
+		WithArgs(credID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.DeleteCredential(dbConn, "alex@test.com", credID)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteCredential_NotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("notfound")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
+		WithArgs("alex@test.com", credID).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	err := db.DeleteCredential(dbConn, "alex@test.com", credID)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "credential not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// UpdateCredential Tests
+
+func TestUpdateCredential_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	// First, search for the credential
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
+		WithArgs("alex@test.com", credID).
+		WillReturnRows(rows)
+
+	// Then, update the credential - use AnyArg() for all arguments since GORM generates all fields
+	// Note: transport is (NULL) in the query and doesn't count as a placeholder argument
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET`)).
+		WithArgs(
+			sqlmock.AnyArg(), // id
+			sqlmock.AnyArg(), // public_key
+			sqlmock.AnyArg(), // attestation_type
+			// transport is (NULL) - no placeholder
+			sqlmock.AnyArg(), // user_present
+			sqlmock.AnyArg(), // user_verified
+			sqlmock.AnyArg(), // backup_eligible
+			sqlmock.AnyArg(), // backup_state
+			sqlmock.AnyArg(), // aaguid
+			sqlmock.AnyArg(), // sign_count
+			sqlmock.AnyArg(), // clone_warning
+			sqlmock.AnyArg(), // attachment
+			sqlmock.AnyArg(), // user_email
+			sqlmock.AnyArg(), // friendly_name
+			sqlmock.AnyArg(), // WHERE id = ?
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "My YubiKey")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredential_NotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("notfound")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2`)).
+		WithArgs("alex@test.com", credID).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "New Name")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "credential not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// GetCredentialDescriptors Tests
+
+func TestGetCredentialDescriptors_Empty(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "public_key", "user_email"}))
+
+	descriptors, err := db.GetCredentialDescriptors(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.Empty(t, descriptors)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentialDescriptors_WithCredentials(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow([]byte("cred1"), []byte("pubkey1"), "direct", true, true, false, false, []byte("aaguid1"), 0, false, "cross-platform", "alex@test.com", "key 0").
+		AddRow([]byte("cred2"), []byte("pubkey2"), "direct", true, true, false, false, []byte("aaguid2"), 0, false, "cross-platform", "alex@test.com", "key 1")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnRows(rows)
+
+	descriptors, err := db.GetCredentialDescriptors(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.Len(t, descriptors, 2)
+	assert.Equal(t, []byte("cred1"), []byte(descriptors[0].CredentialID))
+	assert.Equal(t, []byte("cred2"), []byte(descriptors[1].CredentialID))
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// UpdateClient Tests
+
+func TestUpdateClient_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.Client{
+		ClientID:     "cli1",
+		ClientSecret: "updatedsecret",
+		RedirectURI:  "http://localhost:9090",
+		IsPublic:     true,
+		UserEmail:    "alex@test.com",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "clients" SET`)).
+		WithArgs(
+			client.ClientSecret,
+			client.RedirectURI,
+			client.IsPublic,
+			client.UserEmail,
+			client.ClientID,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateClient(dbConn, client)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// CreateScope Tests
+
+func TestCreateScope_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "scopes"`)).
+		WithArgs("custom_scope").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.CreateScope(dbConn, "custom_scope")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// DeleteScope Tests
+
+func TestDeleteScope_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "scopes" WHERE name = $1`)).
+		WithArgs("custom_scope").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.DeleteScope(dbConn, "custom_scope")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// IsScopeInUse Tests
+
+func TestIsScopeInUse_True(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "client_scopes" WHERE scope_name = $1`)).
+		WithArgs("openid").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+
+	inUse, err := db.IsScopeInUse(dbConn, "openid")
+
+	assert.NoError(t, err)
+	assert.True(t, inUse)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsScopeInUse_False(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "client_scopes" WHERE scope_name = $1`)).
+		WithArgs("unused").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	inUse, err := db.IsScopeInUse(dbConn, "unused")
+
+	assert.NoError(t, err)
+	assert.False(t, inUse)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// CreateClientScope Tests
+
+func TestCreateClientScope_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "client_scopes"`)).
+		WithArgs("cli1", "openid").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.CreateClientScope(dbConn, "cli1", "openid")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// ListClientScopes Tests
+
+func TestListClientScopes_Empty(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "client_scopes" WHERE client_id = $1`)).
+		WithArgs("cli1").
+		WillReturnRows(sqlmock.NewRows([]string{"client_id", "scope_name"}))
+
+	scopes, err := db.ListClientScopes(dbConn, "cli1")
+
+	assert.NoError(t, err)
+	assert.Empty(t, scopes)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListClientScopes_WithScopes(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	rows := sqlmock.NewRows([]string{"client_id", "scope_name"}).
+		AddRow("cli1", "openid").
+		AddRow("cli1", "profile").
+		AddRow("cli1", "email")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "client_scopes" WHERE client_id = $1`)).
+		WithArgs("cli1").
+		WillReturnRows(rows)
+
+	scopes, err := db.ListClientScopes(dbConn, "cli1")
+
+	assert.NoError(t, err)
+	assert.Len(t, scopes, 3)
+	assert.Contains(t, scopes, "openid")
+	assert.Contains(t, scopes, "profile")
+	assert.Contains(t, scopes, "email")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// DeleteClientScope Tests
+
+func TestDeleteClientScope_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "client_scopes" WHERE client_id = $1 AND scope_name = $2`)).
+		WithArgs("cli1", "openid").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.DeleteClientScope(dbConn, "cli1", "openid")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// CreateConfirmation Tests
+
+func TestCreateConfirmation_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+		ExpiryTime:      time.Now().Add(1 * time.Hour).Unix(),
+		ConfirmedTime:   0,
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations"`)).
+		WithArgs(confirmation.UserEmail, confirmation.OneTimePassword, confirmation.ExpiryTime, confirmation.ConfirmedTime).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.CreateConfirmation(dbConn, confirmation)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// ConfirmUser Tests
+
+func TestConfirmUser_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
+		WithArgs(true, confirmation.UserEmail).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.ConfirmUser(dbConn, confirmation)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// ExpireAllConfirmation Tests
+
+func TestExpireAllConfirmation_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE user_email = $2 AND confirmed_time = $3`)).
+		WithArgs(sqlmock.AnyArg(), "alex@test.com", int64(0)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	err := db.ExpireAllConfirmation(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// CreateOIDCClient Tests
+
+func TestCreateOIDCClient_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.OidcClient{
+		Name:         "google",
+		ClientID:     "google-client-id",
+		ClientSecret: "google-secret",
+		RedirectURI:  "http://localhost/callback",
+		ButtonName:   "Sign in with Google",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients"`)).
+		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.CreateOIDCClient(dbConn, client)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// UpdateOIDCClient Tests
+
+func TestUpdateOIDCClient_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.OidcClient{
+		Name:         "google",
+		ClientID:     "new-google-client-id",
+		ClientSecret: "new-google-secret",
+		RedirectURI:  "http://localhost/newcallback",
+		ButtonName:   "Login with Google",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "oidc_clients" SET`)).
+		WithArgs(
+			client.ClientID,
+			client.ClientSecret,
+			client.RedirectURI,
+			client.ButtonName,
+			client.Name, // WHERE name = ?
+			client.Name, // AND "name" = ?
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateOIDCClient(dbConn, client)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// DeleteOIDCClient Tests
+
+func TestDeleteOIDCClient_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "oidc_clients" WHERE name = $1`)).
+		WithArgs("google").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.DeleteOIDCClient(dbConn, "google")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

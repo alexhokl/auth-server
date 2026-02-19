@@ -102,6 +102,14 @@ func UpdateClient(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
+	if client == nil {
+		slog.Warn(
+			"Client not found",
+			slog.String("client_id", c.Param("client_id")),
+		)
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 
 	var req ClientUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
