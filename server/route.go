@@ -47,6 +47,7 @@ type RouterConfig struct {
 	ExpirationPeriod         int64
 	Domain                   string
 	SessionCookieName        string
+	KeyID                    string
 	Mail                     MailConfig
 }
 
@@ -126,7 +127,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, p
 	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
 	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
 	r.GET("/.well-known/openid-configuration", api.WithDatabaseConnection(dialector), api.GetOpenIDConfiguration)
-	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(privateKey))
+	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(cfg.KeyID, privateKey))
 	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
 	r.GET("/.well-known/change-password", api.RedirectToChangePasswordUI)
 

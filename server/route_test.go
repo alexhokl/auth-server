@@ -110,6 +110,7 @@ func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 			ExpirationPeriod:        3600,
 			Domain:                  "test.com",
 			SessionCookieName:       "auth-server",
+			KeyID:                   "test-key-id",
 			Mail: server.MailConfig{
 				From:                   "user@test.com",
 				FromName:               "Test User",

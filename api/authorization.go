@@ -92,12 +92,13 @@ func GetOpenIDConfiguration(c *gin.Context) {
 //	@Tags		OpenID
 //	@Produce	application/json
 //	@Router		/.well-known/openid-configuration/jwks [get]
-func GetJSONWebKeySetHandler(privateKey *ecdsa.PrivateKey) func(c *gin.Context) {
+func GetJSONWebKeySetHandler(keyID string, privateKey *ecdsa.PrivateKey) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := JSONWebKey{
 			Kty: "EC",
 			Alg: fmt.Sprintf("ES%d", privateKey.Params().BitSize),
 			Crv: privateKey.Params().Name,
+			Kid: keyID,
 			X:   base64.URLEncoding.EncodeToString(privateKey.X.Bytes()),
 			Y:   base64.URLEncoding.EncodeToString(privateKey.Y.Bytes()),
 		}
