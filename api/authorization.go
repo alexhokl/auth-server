@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
@@ -18,7 +19,7 @@ import (
 
 const ContentTypeJrdJSON = "application/jrd+json"
 
-func HandleInternalError(err error) (re *errors.Response) {
+func HandleInternalError(_ context.Context, err error) (re *errors.Response) {
 	switch err {
 	case errors.ErrInvalidRedirectURI:
 		fallthrough
