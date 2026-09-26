@@ -208,10 +208,12 @@ definitions:
         $ref: '#/definitions/api.CollectedClientData'
       signature:
         items:
+          format: int32
           type: integer
         type: array
       userHandle:
         items:
+          format: int32
           type: integer
         type: array
     type: object
