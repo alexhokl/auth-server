@@ -1,9 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -152,4 +156,44 @@ func TestIsMaliciousRequest_ReturnsNil(t *testing.T) {
 	err := isMaliciousRequest(nil)
 
 	assert.Nil(t, err)
+}
+
+// Error Handling Tests
+
+func TestHandleUnexpectedError_AbortsWithInternalServerError(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	handleUnexpectedError(c, errors.New("some failure"))
+
+	assert.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	assert.True(t, c.IsAborted())
+}
+
+func TestHandleInternalErrorResponse_AbortsWithInternalServerError(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	handleInternalError(c, errors.New("some failure"), "unable to do something")
+
+	assert.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	assert.True(t, c.IsAborted())
+}
+
+// A nil error is logged without the error attribute rather than panicking as
+// handlers report missing configuration this way.
+func TestHandleInternalErrorResponse_WithoutError(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	handleInternalError(c, nil, "missing configuration for database")
+
+	assert.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	assert.True(t, c.IsAborted())
+}
+
+func TestHandleBadRequest_AbortsWithBadRequest(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	handleBadRequest(c, errors.New("some failure"), "unable to parse request")
+
+	assert.Equal(t, http.StatusBadRequest, c.Writer.Status())
+	assert.True(t, c.IsAborted())
 }
