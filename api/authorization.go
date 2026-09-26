@@ -216,6 +216,7 @@ func getScopes(dbConn *gorm.DB) []string {
 func getGrantTypes() []string {
 	return []string{
 		"authorization_code",
+		"client_credentials",
 		"refresh_token",
 	}
 }
