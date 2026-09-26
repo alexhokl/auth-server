@@ -96,11 +96,14 @@ func GetJSONWebKeySetHandler(keyID string, privateKey *ecdsa.PrivateKey) func(c 
 	return func(c *gin.Context) {
 		key := JSONWebKey{
 			Kty: "EC",
+			Use: "sig",
 			Alg: fmt.Sprintf("ES%d", privateKey.Params().BitSize),
 			Crv: privateKey.Params().Name,
 			Kid: keyID,
-			X:   base64.URLEncoding.EncodeToString(privateKey.X.Bytes()),
-			Y:   base64.URLEncoding.EncodeToString(privateKey.Y.Bytes()),
+			// see https://www.rfc-editor.org/rfc/rfc7515#section-2 on the
+			// requirement of base64url encoding without padding
+			X: base64.RawURLEncoding.EncodeToString(privateKey.X.Bytes()),
+			Y: base64.RawURLEncoding.EncodeToString(privateKey.Y.Bytes()),
 		}
 		set := JSONWebKeySet{
 			Keys: []JSONWebKey{key},
