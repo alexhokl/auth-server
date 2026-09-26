@@ -28,7 +28,6 @@ import (
 //	@description	This API provides authentication and authorization services.
 
 const defaultPort = 8080
-const tokenGarbageCollectionIntervalInSeconds = 600
 
 func main() {
 	setDefaultSettings()
