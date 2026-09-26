@@ -12,16 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestLoginPage(t *testing.T) {
-// 	router := getRouter()
-// 	w := httptest.NewRecorder()
-// 	req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
-// 	router.ServeHTTP(w, req)
+//	func TestLoginPage(t *testing.T) {
+//		router := getRouter()
+//		w := httptest.NewRecorder()
+//		req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
+//		router.ServeHTTP(w, req)
 //
-// 	assert.Equal(t, http.StatusOK, w.Code)
-// 	// assert.Equal(t, "", w.Body.String())
-// }
-//
+//		assert.Equal(t, http.StatusOK, w.Code)
+//		// assert.Equal(t, "", w.Body.String())
+//	}
 func TestSignUp(t *testing.T) {
 	router, _ := getRouter()
 	w := httptest.NewRecorder()
@@ -101,7 +100,25 @@ func TestSwaggerJson(t *testing.T) {
 func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 	mockDB, mock, _ := sqlmock.New()
 	dialector := database.GetDatabaseDialectorFromConnection(mockDB)
-	router, err := server.GetRouter(dialector, nil, "", "", "", "", false, nil, nil, true, 3600, "", "user@test.com", "Test User", "Confirming your registration", "test.com", "Your password has been changed", "Password reset requested", false, "auth-server")
+	router, err := server.GetRouter(
+		dialector,
+		nil,
+		nil,
+		nil,
+		server.RouterConfig{
+			EnableFrontendEndpoints: true,
+			ExpirationPeriod:        3600,
+			Domain:                  "test.com",
+			SessionCookieName:       "auth-server",
+			Mail: server.MailConfig{
+				From:                   "user@test.com",
+				FromName:               "Test User",
+				ConfirmationSubject:    "Confirming your registration",
+				PasswordChangedSubject: "Your password has been changed",
+				PasswordResetSubject:   "Password reset requested",
+			},
+		},
+	)
 	if err != nil {
 		panic(err)
 	}

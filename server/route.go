@@ -22,13 +22,50 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisTokenDatabaseName, redisSessionDatabaseName string, enforcePKCE bool, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, enableFrontendEndpoints bool, expirationPeriod int64, resendAPIKey string, mailFrom string, mailFromName string, confirmationMailSubject string, domain string, passwordChangedMailSubject string, resetPasswordMailSubject string, enableOIDC bool, sessionCookieName string) (*gin.Engine, error) {
+// MailConfig describes how notification mails are sent.
+type MailConfig struct {
+	ResendAPIKey           string
+	From                   string
+	FromName               string
+	ConfirmationSubject    string
+	PasswordChangedSubject string
+	PasswordResetSubject   string
+}
+
+// RouterConfig describes the configurable values of the router.
+//
+// Note that the fields are deliberately named rather than passed positionally
+// as several of them share the same type.
+type RouterConfig struct {
+	RedisHost                string
+	RedisPassword            string
+	RedisTokenDatabaseName   string
+	RedisSessionDatabaseName string
+	EnforcePKCE              bool
+	EnableFrontendEndpoints  bool
+	EnableOIDC               bool
+	ExpirationPeriod         int64
+	Domain                   string
+	SessionCookieName        string
+	Mail                     MailConfig
+}
+
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, cfg RouterConfig) (*gin.Engine, error) {
 	dbConn, err := database.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
 	}
-	setupSessionManager(enableOIDC, sessionCookieName, redisHost, redisPassword, redisSessionDatabaseName)
-	oauthService := getOAuthService(dbConn, tokenGenerator, redisHost, redisPassword, redisTokenDatabaseName, enforcePKCE)
+	setupSessionManager(cfg.EnableOIDC, cfg.SessionCookieName, cfg.RedisHost, cfg.RedisPassword, cfg.RedisSessionDatabaseName)
+	oauthService := getOAuthService(dbConn, tokenGenerator, cfg.RedisHost, cfg.RedisPassword, cfg.RedisTokenDatabaseName, cfg.EnforcePKCE)
+
+	withMail := api.WithMail(
+		cfg.Mail.ResendAPIKey,
+		cfg.Mail.From,
+		cfg.Mail.FromName,
+		cfg.Mail.ConfirmationSubject,
+		cfg.Mail.PasswordChangedSubject,
+		cfg.Mail.PasswordResetSubject,
+	)
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -44,7 +81,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 
 	r.POST("/signin", api.SignIn)
 	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), api.SignInPasswordChallenge)
-	if enableOIDC {
+	if cfg.EnableOIDC {
 		r.GET(
 			fmt.Sprintf("/:action/:oidc_name/%s", api.OIDC_START_ENDPOINT),
 			api.WithDatabaseConnection(dialector),
@@ -59,9 +96,9 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	r.POST(
 		"/signup",
 		api.WithDatabaseConnection(dialector),
-		api.WithExpirationPeriod(expirationPeriod),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
-		api.WithDomain(domain),
+		api.WithExpirationPeriod(cfg.ExpirationPeriod),
+		withMail,
+		api.WithDomain(cfg.Domain),
 		api.SignUp,
 	)
 	r.POST("/token", gin.WrapF(api.GetTokenRequestHandler(oauthService)))
@@ -69,21 +106,21 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	r.POST("/changepassword",
 		api.RequiredAuthenticated(),
 		api.WithDatabaseConnection(dialector),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
-		api.WithDomain(domain),
+		withMail,
+		api.WithDomain(cfg.Domain),
 		api.ChangePassword,
 	)
 	r.POST("/resetpassword",
 		api.WithDatabaseConnection(dialector),
-		api.WithExpirationPeriod(expirationPeriod),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
-		api.WithDomain(domain),
+		api.WithExpirationPeriod(cfg.ExpirationPeriod),
+		withMail,
+		api.WithDomain(cfg.Domain),
 		api.ResetPassword)
 	r.GET("/confirmresetpassword/:otp", api.WithDatabaseConnection(dialector), api.ConfirmResetPassword)
 	r.POST("/confirmresetpassword/:otp",
 		api.WithDatabaseConnection(dialector),
-		api.WithMail(resendAPIKey, mailFrom, mailFromName, confirmationMailSubject, passwordChangedMailSubject, resetPasswordMailSubject),
-		api.WithDomain(domain),
+		withMail,
+		api.WithDomain(cfg.Domain),
 		api.NewPassword)
 
 	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
@@ -133,8 +170,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, r
 	oidc.PUT(":name", api.UpdateOIDCClient)
 	oidc.DELETE(":name", api.DeleteOIDCClient)
 
-	if enableFrontendEndpoints {
-		r.GET("/signin", api.WithDatabaseConnection(dialector), api.WithOIDC(enableOIDC), api.SignInUI)
+	if cfg.EnableFrontendEndpoints {
+		r.GET("/signin", api.WithDatabaseConnection(dialector), api.WithOIDC(cfg.EnableOIDC), api.SignInUI)
 		r.GET("/signin/challenge", api.HasEmailInSession, api.SignInChallengeUI)
 		r.StaticFile("/assets/signin.js", "./assets/signin.js")
 		r.StaticFile("/assets/styles.css", "./assets/styles.css")
