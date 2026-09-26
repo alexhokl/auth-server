@@ -11,7 +11,6 @@ It is based on the following libraries.
 - [go-webauthn/webauthn](https://github.com/go-webauthn/webauthn)
 - [resendlabs/resend-go](https://github.com/resendlabs/resend-go)
 
-
 :warning: This is a work in progress and not ready for production yet :warning:
 
 ## Setting up server
@@ -20,8 +19,9 @@ Users with administrative privileges can be seeded by starting this server with
 an empty database (technically empty database table `users`). The server will
 read the file configured via environment variable `AUTH_SEED_USERS_FILE_PATH`.
 
-The file is in JSON format and the schema can be found in
-[ImportUser](https://github.com/alexhokl/auth-server/blob/c7a770df8026e77f4163df6a9a9d40db3b76a29e/api/model.go#L118). The following is an example of content of the file.
+The file is in JSON format and the schema is defined by `ImportUser` in
+[api/model.go](api/model.go). The following is an example of content of the
+file.
 
 ```json
 [
@@ -41,9 +41,39 @@ administrator to configure other aspects (such as OAuth clients) of this server.
 
 ### Prerequisite
 
+- [Task](https://taskfile.dev/) as the task runner (this repository has no
+  `Makefile`)
+- Docker (for the PostgreSQL and Redis containers)
+- [swag](https://github.com/swaggo/swag) as tasks `run` and `run-debug`
+  regenerate the Swagger documentation before starting the server
+
 ```sh
 go install github.com/swaggo/swag/cmd/swag@latest
 ```
+
+### Build and test
+
+```sh
+task build
+task test
+```
+
+Note that the build uses build tag `nomsgpack`; see `Taskfile.yml`.
+
+### Keys and secrets
+
+Secrets are configured as *file paths* rather than values (for example
+`AUTH_DATABASE_CONNECTION_STRING_FILE_PATH`, `AUTH_REDIS_PASSWORD_FILE_PATH`
+and `AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH`). For local development these files
+live in directory `keys/`. The ECDSA key used for signing tokens can be
+generated with [step](https://smallstep.com/docs/step-cli/).
+
+```sh
+task gen-key
+```
+
+The full set of environment variables used by a working local run is the `env`
+block of task `run-debug` in `Taskfile.yml`.
 
 ### Using localhost
 
@@ -56,10 +86,10 @@ Assuming the domain is `node-name.some-name.ts.net`.
 
 Set environment variable `AUTH_DOMAIN` to `node-name.some-name.ts.net`.
 
-To setup the API and its databases
+To setup the API and its databases (task `run` starts the database containers
+and regenerates the Swagger documentation first)
 
 ```sh
-task up-db
 task run
 ```
 
@@ -78,16 +108,17 @@ To start reverse proxy from the MagicDNS domain name from Tailscale to port
 task caddy
 ```
 
-To create user and OAuth client
+To create a user and an OAuth client
 
 ```sh
+task test-signup
 task test-client-create
 ```
 
 To test sign-in and access token retrieval
 
 ```sh
-task test-step-domain
+task test-step
 ```
 
 or
@@ -98,11 +129,15 @@ task test-password
 task test-token
 ```
 
+Note that these `test-*` tasks are cURL/`step` smoke tests against a running
+server; most of them require environment variable `AUTH_DOMAIN` and the cookie
+file produced by `task test-login`.
+
 To test WebAuthn (FIDO2) registration
 
-1. Sign-in using password via `https://mac14.husky-bee.ts.net/`
+1. Sign-in using password via `https://node-name.some-name.ts.net/`
 2. Once authenticated, press button `Register key` via
-   `https://mac14.husky-bee.ts.net/authenticated/`
+   `https://node-name.some-name.ts.net/authenticated/`
 
 To test login via OIDC provider
 
@@ -132,7 +167,8 @@ encoding.
 
 ## Current FIDO2/WebAuthn Support
 
-The auth-server has a complete FIDO2/WebAuthn implementation with the following capabilities:
+The auth-server has a complete FIDO2/WebAuthn implementation with the following
+capabilities.
 
 | Feature | Status | Details |
 |---------|--------|---------|
