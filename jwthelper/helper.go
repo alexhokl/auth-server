@@ -11,7 +11,7 @@ import (
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/alexhokl/helper/iohelper"
 	"github.com/go-oauth2/oauth2/v4"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -48,11 +48,11 @@ func LoadEcdsaPrivateKey(pathToPrivateKeyFile string, pathToPrivateKeyPasswordFi
 }
 
 func (g *EcKeyJWTGenerator) Token(ctx context.Context, data *oauth2.GenerateBasic, isGenRefresh bool) (string, string, error) {
-	claims := &jwt.StandardClaims{
-		Audience:  data.Client.GetID(),
+	claims := &jwt.RegisteredClaims{
+		Audience:  jwt.ClaimStrings{data.Client.GetID()},
 		Subject:   data.UserID,
-		ExpiresAt: data.TokenInfo.GetAccessCreateAt().Add(data.TokenInfo.GetAccessExpiresIn()).Unix(),
-		IssuedAt:  data.TokenInfo.GetAccessCreateAt().Unix(),
+		ExpiresAt: jwt.NewNumericDate(data.TokenInfo.GetAccessCreateAt().Add(data.TokenInfo.GetAccessExpiresIn())),
+		IssuedAt:  jwt.NewNumericDate(data.TokenInfo.GetAccessCreateAt()),
 		Issuer:    httphelper.GetBaseURL(data.Request),
 	}
 

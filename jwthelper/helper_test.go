@@ -5,15 +5,18 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/alexhokl/auth-server/jwthelper"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -192,18 +195,18 @@ func TestEcKeyJWTGenerator_Token_ContainsCorrectClaims(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Parse and verify claims
-	token, err := jwt.ParseWithClaims(access, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(access, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return &key.PublicKey, nil
 	})
 	assert.NoError(t, err)
 
-	claims, ok := token.Claims.(*jwt.StandardClaims)
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	assert.True(t, ok)
-	assert.Equal(t, "test-client", claims.Audience)
+	assert.Equal(t, jwt.ClaimStrings{"test-client"}, claims.Audience)
 	assert.Equal(t, "user@test.com", claims.Subject)
 	assert.Equal(t, "http://auth.example.com", claims.Issuer)
-	assert.Equal(t, createAt.Unix(), claims.IssuedAt)
-	assert.Equal(t, createAt.Add(expiresIn).Unix(), claims.ExpiresAt)
+	assert.Equal(t, createAt.Unix(), claims.IssuedAt.Unix())
+	assert.Equal(t, createAt.Add(expiresIn).Unix(), claims.ExpiresAt.Unix())
 }
 
 func TestEcKeyJWTGenerator_Token_IncludesKidInHeader(t *testing.T) {
@@ -231,7 +234,7 @@ func TestEcKeyJWTGenerator_Token_IncludesKidInHeader(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Parse token without validation to check header
-	token, _, _ := new(jwt.Parser).ParseUnverified(access, &jwt.StandardClaims{})
+	token, _, _ := new(jwt.Parser).ParseUnverified(access, &jwt.RegisteredClaims{})
 	assert.Equal(t, kid, token.Header["kid"])
 }
 
@@ -259,9 +262,55 @@ func TestEcKeyJWTGenerator_Token_NoKidWhenEmpty(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Parse token without validation to check header
-	token, _, _ := new(jwt.Parser).ParseUnverified(access, &jwt.StandardClaims{})
+	token, _, _ := new(jwt.Parser).ParseUnverified(access, &jwt.RegisteredClaims{})
 	_, hasKid := token.Header["kid"]
 	assert.False(t, hasKid)
+}
+
+// TestEcKeyJWTGenerator_Token_ClaimsWireFormat inspects the payload of the
+// token directly instead of relying on the JWT library to decode it. This
+// pins down the format of the claims as seen by a client of this server.
+func TestEcKeyJWTGenerator_Token_ClaimsWireFormat(t *testing.T) {
+	key := generateTestECDSAKey()
+	generator := jwthelper.NewEcKeyJWTGenerator("test-kid", key, jwt.SigningMethodES256)
+
+	req := httptest.NewRequest(http.MethodGet, "https://auth.example.com/token", nil)
+
+	createAt := time.Now()
+	expiresIn := time.Hour
+
+	data := &oauth2.GenerateBasic{
+		Client: &mockClient{id: "test-client"},
+		UserID: "user@test.com",
+		TokenInfo: &mockTokenInfo{
+			accessCreateAt:  createAt,
+			accessExpiresIn: expiresIn,
+		},
+		Request: req,
+	}
+
+	access, _, err := generator.Token(context.Background(), data, false)
+	assert.NoError(t, err)
+
+	parts := strings.Split(access, ".")
+	assert.Len(t, parts, 3)
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	assert.NoError(t, err)
+
+	var claims map[string]any
+	assert.NoError(t, json.Unmarshal(payload, &claims))
+
+	// claim aud is an array of strings as of jwt v5
+	assert.Equal(t, []any{"test-client"}, claims["aud"])
+
+	// claims exp and iat are seconds since the epoch
+	assert.Equal(t, float64(createAt.Add(expiresIn).Unix()), claims["exp"])
+	assert.Equal(t, float64(createAt.Unix()), claims["iat"])
+
+	assert.Equal(t, "user@test.com", claims["sub"])
+	// the request of the test is not over TLS and thus the base URL is HTTP
+	assert.Equal(t, "http://auth.example.com", claims["iss"])
 }
 
 func TestEcKeyJWTGenerator_Token_DifferentCallsProduceDifferentRefreshTokens(t *testing.T) {
