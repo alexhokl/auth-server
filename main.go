@@ -209,7 +209,7 @@ func main() {
 	stop()
 	slog.Info("shutting down gracefully, press Ctrl+C again to force")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("shutdown_timeout"))
 	defer cancel()
 
 	// tries to shut down the server gracefully
