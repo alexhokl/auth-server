@@ -13,6 +13,69 @@ It is based on the following libraries.
 
 :warning: This is a work in progress and not ready for production yet :warning:
 
+## Features
+
+### OAuth 2.0
+
+- Authorization code, client credentials and refresh token grants
+- Response types `code` and `token`; access tokens are issued only over `POST
+  /token` as GET access requests are disabled
+- PKCE, enforced by default and controlled by `AUTH_ENFORCE_PKCE`
+- Access tokens are ECDSA-signed JWTs (`ES256`) with a configurable key ID
+- Tokens are stored in Redis; clients, scopes and users are stored in PostgreSQL
+
+### OpenID Connect
+
+- Discovery document at `/.well-known/openid-configuration`
+- JSON Web Key Set at `/.well-known/openid-configuration/jwks`
+- [WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`
+- Well-known change-password URL at `/.well-known/change-password`
+
+### Authentication
+
+- Email and password sign-in with `bcrypt` password hashes, as a two-step flow
+  (`POST /signin` followed by `POST /signin/challenge`)
+- WebAuthn (FIDO2) registration and passwordless sign-in, including credential
+  management and clone detection; see
+  [Current FIDO2/WebAuthn Support](#current-fido2webauthn-support)
+- Sign-in through an external OIDC provider (currently Google), enabled with
+  `AUTH_ENABLE_OIDC`
+- Server-side sessions held in Redis under a configurable cookie name
+
+### User and account management
+
+- Self-service sign-up with email confirmation through a one-time password
+  (`POST /signup` followed by `GET /confirm/:otp`)
+- Password change for an authenticated user (`POST /changepassword`)
+- Password reset by email through a one-time password link
+  (`POST /resetpassword` and `GET`/`POST /confirmresetpassword/:otp`)
+- Confirmation, password-changed and password-reset emails sent through
+  [Resend](https://resend.com), with configurable subjects and sender
+- One-time passwords expire after `AUTH_EXPIRATION_PERIOD` seconds
+- Administrators seeded from a JSON file on the first start of an empty database
+
+### Administration
+
+- OAuth client management, restricted to users holding role `admin`
+  (`POST`, `PATCH` and `GET` on `/clients`)
+- Scope management, globally via `/scopes` and per client via
+  `/clients/:client_id/scopes`
+- OIDC provider management (`GET`, `POST`, `PUT` and `DELETE` on `/oidcclients`)
+- User listing (`GET /users`)
+- Role-based access enforced by middleware on each route group
+
+### Operations
+
+- Swagger 2.0 UI at `/swagger/index.html`, generated from code comments by
+  [swag](https://github.com/swaggo/swag)
+- Optional built-in front end covering sign-in, sign-up, password change and
+  credential management, toggled with `AUTH_FRONTEND_ENDPOINTS`
+- Database schema applied automatically on start-up through GORM AutoMigrate
+- Structured JSON logging through `log/slog`
+- Graceful shutdown on `SIGINT` and `SIGTERM`
+- Configuration through environment variables prefixed with `AUTH_`, with
+  secrets read from file paths rather than values
+
 ## Setting up server
 
 Users with administrative privileges can be seeded by starting this server with
