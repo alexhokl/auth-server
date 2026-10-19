@@ -15,6 +15,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// IDTokenClaims describes the claims of an OpenID Connect ID token.
+type IDTokenClaims struct {
+	jwt.RegisteredClaims
+	Nonce           string `json:"nonce,omitempty"`
+	AuthorizedParty string `json:"azp,omitempty"`
+	Email           string `json:"email,omitempty"`
+}
+
 type EcKeyJWTGenerator struct {
 	kid           string
 	key           *ecdsa.PrivateKey
@@ -56,12 +64,7 @@ func (g *EcKeyJWTGenerator) Token(ctx context.Context, data *oauth2.GenerateBasi
 		Issuer:    httphelper.GetBaseURL(data.Request),
 	}
 
-	token := jwt.NewWithClaims(g.signingMethod, claims)
-	if g.kid != "" {
-		token.Header["kid"] = g.kid
-	}
-
-	access, err := token.SignedString(g.key)
+	access, err := g.sign(claims)
 	if err != nil {
 		return "", "", err
 	}
@@ -74,4 +77,17 @@ func (g *EcKeyJWTGenerator) Token(ctx context.Context, data *oauth2.GenerateBasi
 	}
 
 	return access, refresh, nil
+}
+
+// IDToken signs an OpenID Connect ID token with the same key as access tokens.
+func (g *EcKeyJWTGenerator) IDToken(claims *IDTokenClaims) (string, error) {
+	return g.sign(claims)
+}
+
+func (g *EcKeyJWTGenerator) sign(claims jwt.Claims) (string, error) {
+	token := jwt.NewWithClaims(g.signingMethod, claims)
+	if g.kid != "" {
+		token.Header["kid"] = g.kid
+	}
+	return token.SignedString(g.key)
 }

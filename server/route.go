@@ -51,13 +51,13 @@ type RouterConfig struct {
 	Mail                     MailConfig
 }
 
-func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, cfg RouterConfig) (*gin.Engine, error) {
+func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, idTokenSigner api.IDTokenSigner, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, cfg RouterConfig) (*gin.Engine, error) {
 	dbConn, err := database.GetDatabaseConnection(dialector)
 	if err != nil {
 		return nil, err
 	}
 	setupSessionManager(cfg.EnableOIDC, cfg.SessionCookieName, cfg.RedisHost, cfg.RedisPassword, cfg.RedisSessionDatabaseName)
-	oauthService := getOAuthService(dbConn, tokenGenerator, cfg.RedisHost, cfg.RedisPassword, cfg.RedisTokenDatabaseName, cfg.EnforcePKCE)
+	oauthService := getOAuthService(dbConn, tokenGenerator, idTokenSigner, cfg.RedisHost, cfg.RedisPassword, cfg.RedisTokenDatabaseName, cfg.EnforcePKCE)
 
 	withMail := api.WithMail(
 		cfg.Mail.ResendAPIKey,
@@ -128,6 +128,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, p
 	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
 	r.GET("/.well-known/openid-configuration", api.WithDatabaseConnection(dialector), api.GetOpenIDConfiguration)
 	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(cfg.KeyID, privateKey))
+	r.GET("/userinfo", api.WithDatabaseConnection(dialector), api.GetUserInfoHandler(oauthService))
+	r.POST("/userinfo", api.WithDatabaseConnection(dialector), api.GetUserInfoHandler(oauthService))
 	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
 	r.GET("/.well-known/change-password", api.RedirectToChangePasswordUI)
 
@@ -193,7 +195,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, p
 	return r, nil
 }
 
-func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redisHost, redisPassword, redisDatabaseName string, enforcePKCE bool) *server.Server {
+func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, idTokenSigner api.IDTokenSigner, redisHost, redisPassword, redisDatabaseName string, enforcePKCE bool) *server.Server {
 	clientStore := store.NewClientStore(dbConn)
 	tokenStore := oauthredis.NewRedisStore(
 		&oauthredisopts.Options{
@@ -207,6 +209,7 @@ func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redi
 	manager.MapClientStorage(clientStore)
 	manager.MapTokenStorage(tokenStore)
 	manager.MapAccessGenerate(tokenGenerator)
+	manager.SetExtractExtensionHandler(api.ExtractTokenExtension)
 
 	srv := server.NewDefaultServer(manager)
 	srv.Config.ForcePKCE = enforcePKCE
@@ -226,6 +229,7 @@ func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redi
 	// srv.SetResponseErrorHandler(api.HandleErrorResponse)
 	srv.SetUserAuthorizationHandler(api.GetUserIdInAuthorizationRequest)
 	srv.SetClientInfoHandler(api.HandleClientInfoInTokenRequest)
+	srv.SetExtensionFieldsHandler(api.GetIDTokenExtensionFieldsHandler(idTokenSigner))
 
 	return srv
 }

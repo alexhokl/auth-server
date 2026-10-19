@@ -245,6 +245,17 @@ definitions:
       status:
         type: string
     type: object
+  api.UserInfo:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      name:
+        type: string
+      sub:
+        type: string
+    type: object
   api.UserSignUpRequest:
     properties:
       email:
@@ -521,4 +532,39 @@ paths:
       summary: Issues a token
       tags:
       - OAuth
+  /userinfo:
+    get:
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserInfo'
+      summary: OpenID Connect userinfo endpoint
+      tags:
+      - OpenID
+    post:
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserInfo'
+      summary: OpenID Connect userinfo endpoint
+      tags:
+      - OpenID
 swagger: "2.0"

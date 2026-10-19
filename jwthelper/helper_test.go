@@ -373,3 +373,62 @@ func TestEcKeyJWTGenerator_Token_WithModelsClient(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, access)
 }
+
+func TestEcKeyJWTGenerator_IDToken_ContainsCorrectClaims(t *testing.T) {
+	key := generateTestECDSAKey()
+	generator := jwthelper.NewEcKeyJWTGenerator("test-kid", key, jwt.SigningMethodES256)
+	now := time.Now().Truncate(time.Second)
+
+	idToken, err := generator.IDToken(&jwthelper.IDTokenClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "https://auth.example.com",
+			Subject:   "user@test.com",
+			Audience:  jwt.ClaimStrings{"test-client"},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+		},
+		Nonce:           "test-nonce",
+		AuthorizedParty: "test-client",
+		Email:           "user@test.com",
+	})
+	assert.NoError(t, err)
+
+	claims := &jwthelper.IDTokenClaims{}
+	token, err := jwt.ParseWithClaims(idToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return &key.PublicKey, nil
+	})
+	assert.NoError(t, err)
+	assert.True(t, token.Valid)
+	assert.Equal(t, "test-kid", token.Header["kid"])
+	assert.Equal(t, "ES256", token.Header["alg"])
+	assert.Equal(t, "https://auth.example.com", claims.Issuer)
+	assert.Equal(t, "user@test.com", claims.Subject)
+	assert.Equal(t, jwt.ClaimStrings{"test-client"}, claims.Audience)
+	assert.Equal(t, "test-nonce", claims.Nonce)
+	assert.Equal(t, "test-client", claims.AuthorizedParty)
+	assert.Equal(t, "user@test.com", claims.Email)
+	assert.Equal(t, now.Add(time.Hour).Unix(), claims.ExpiresAt.Unix())
+}
+
+func TestEcKeyJWTGenerator_IDToken_OmitsEmptyOptionalClaims(t *testing.T) {
+	key := generateTestECDSAKey()
+	generator := jwthelper.NewEcKeyJWTGenerator("test-kid", key, jwt.SigningMethodES256)
+
+	idToken, err := generator.IDToken(&jwthelper.IDTokenClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: "user@test.com",
+		},
+	})
+	assert.NoError(t, err)
+
+	parts := strings.Split(idToken, ".")
+	assert.Len(t, parts, 3)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	assert.NoError(t, err)
+	var raw map[string]interface{}
+	assert.NoError(t, json.Unmarshal(payload, &raw))
+	assert.Equal(t, "user@test.com", raw["sub"])
+	assert.NotContains(t, raw, "nonce")
+	assert.NotContains(t, raw, "azp")
+	assert.NotContains(t, raw, "email")
+}

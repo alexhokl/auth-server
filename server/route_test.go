@@ -88,6 +88,18 @@ func TestClientList(t *testing.T) {
 	// assert.Equal(t, "", w.Body.String())
 }
 
+func TestUserInfoWithoutAccessToken(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		router, _ := getRouter()
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(method, "/userinfo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Equal(t, `Bearer error="invalid_token"`, w.Header().Get("WWW-Authenticate"))
+	}
+}
+
 func TestSwaggerJson(t *testing.T) {
 	router, _ := getRouter()
 	w := httptest.NewRecorder()
@@ -102,6 +114,7 @@ func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 	dialector := database.GetDatabaseDialectorFromConnection(mockDB)
 	router, err := server.GetRouter(
 		dialector,
+		nil,
 		nil,
 		nil,
 		nil,

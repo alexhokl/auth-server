@@ -162,6 +162,7 @@ func main() {
 	router, err := authserver.GetRouter(
 		dialector,
 		jwtGenerator,
+		jwtGenerator,
 		ecdsaPrivateKey,
 		fidoService,
 		authserver.RouterConfig{

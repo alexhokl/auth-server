@@ -30,9 +30,16 @@ It is based on the following libraries.
 - JSON Web Key Set at `/.well-known/openid-configuration/jwks`
 - [WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`
 - Well-known change-password URL at `/.well-known/change-password`
-- Discovery and JWKS let clients verify access tokens; ID tokens and a
-  `userinfo` endpoint are not issued yet (see
-  [Implementation status](#implementation-status))
+- ID tokens (`ES256`, signed with the access token key) returned by `/token`
+  for an authorization code granted with scope `openid`, and on refreshing it;
+  they carry `iss`, `sub`, `aud`, `azp`, `iat`, `exp`, the `nonce` of the
+  authorization request and, with scope `email`, `email`
+- `userinfo` endpoint (`GET` and `POST /userinfo`) for a bearer access token
+  with scope `openid`, returning `sub`, plus `email` and `email_verified` with
+  scope `email` and `name` with scope `profile`
+- The subject (`sub`) of tokens and userinfo is the email address of the user
+- Only the authorization code flow is supported; response types `id_token` and
+  hybrid flows, and request parameters `claims`, `max_age` and `prompt` are not
 
 ### Authentication
 
@@ -89,16 +96,14 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 91.1% |
+| `api` | 91.5% |
 | `db` | 93.7% |
-| `jwthelper` | 95.8% |
-| `server` | 96.2% |
+| `jwthelper` | 96.2% |
+| `server` | 96.3% |
 | `store` | 93.8% |
 
 ### Not yet implemented / known gaps
 
-- ID tokens are not issued and there is no `userinfo` endpoint, so the server
-  is an OAuth 2.0 authorization server rather than a full OpenID Provider
 - Sign-in through an external OIDC provider supports Google only; Facebook and
   Microsoft are stubbed and return "not implemented"
 - Detection of malicious requests (`isMaliciousRequest` in `api/helper.go`) is

@@ -108,9 +108,13 @@ func GetOpenIDConfiguration(c *gin.Context) {
 		AuthorizationEndpoint:             fmt.Sprintf("%s/authorize", issuer),
 		TokenEndpoint:                     fmt.Sprintf("%s/token", issuer),
 		JwksUri:                           fmt.Sprintf("%s/.well-known/openid-configuration/jwks", issuer),
+		UserinfoEndpoint:                  fmt.Sprintf("%s/userinfo", issuer),
 		ScopesSupported:                   getScopes(dbConn),
 		ResponseTypesSupported:            getResponseTypes(),
 		GrantTypesSupported:               getGrantTypes(),
+		SubjectTypesSupported:             getSubjectTypesSupported(),
+		IDTokenSigningAlgValuesSupported:  getIDTokenSigningAlgValuesSupported(),
+		ClaimsSupported:                   getClaimsSupported(),
 		TokenEndpointAuthMethodsSupported: getTokenEndpointSupportedAuthMethods(),
 		CodeChallengeMethodsSupported:     getCodeChallengeMethodsSupported(),
 	}
@@ -272,5 +276,32 @@ func getTokenEndpointSupportedAuthMethods() []string {
 func getCodeChallengeMethodsSupported() []string {
 	return []string{
 		"S256",
+	}
+}
+
+func getSubjectTypesSupported() []string {
+	return []string{
+		"public",
+	}
+}
+
+func getIDTokenSigningAlgValuesSupported() []string {
+	return []string{
+		"ES256",
+	}
+}
+
+func getClaimsSupported() []string {
+	return []string{
+		"sub",
+		"iss",
+		"aud",
+		"exp",
+		"iat",
+		"nonce",
+		"azp",
+		"email",
+		"email_verified",
+		"name",
 	}
 }

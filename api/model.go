@@ -97,11 +97,15 @@ type OpenIDConfiguration struct {
 	AuthorizationEndpoint                              string   `json:"authorization_endpoint,omitempty"`
 	TokenEndpoint                                      string   `json:"token_endpoint,omitempty"`
 	JwksUri                                            string   `json:"jwks_uri,omitempty"`
+	UserinfoEndpoint                                   string   `json:"userinfo_endpoint,omitempty"`
 	RegistrationEndpoint                               string   `json:"registration_endpoint,omitempty"`
 	ScopesSupported                                    []string `json:"scopes_supported,omitempty"`
 	ResponseTypesSupported                             []string `json:"response_types_supported,omitempty"`
 	ResponseModesSupported                             []string `json:"response_modes_supported,omitempty"`
 	GrantTypesSupported                                []string `json:"grant_types_supported,omitempty"`
+	SubjectTypesSupported                              []string `json:"subject_types_supported,omitempty"`
+	IDTokenSigningAlgValuesSupported                   []string `json:"id_token_signing_alg_values_supported,omitempty"`
+	ClaimsSupported                                    []string `json:"claims_supported,omitempty"`
 	TokenEndpointAuthMethodsSupported                  []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 	TokenEndpointAuthSigningAlgValuesSupported         []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
 	ServiceDocumentation                               string   `json:"service_documentation,omitempty"`
@@ -115,6 +119,14 @@ type OpenIDConfiguration struct {
 	IntrospectionEndpointAuthMethodsSupported          []string `json:"introspection_endpoint_auth_methods_supported,omitempty"`
 	IntrospectionEndpointAuthSigningAlgValuesSupported []string `json:"introspection_endpoint_auth_signing_alg_values_supported,omitempty"`
 	CodeChallengeMethodsSupported                      []string `json:"code_challenge_methods_supported,omitempty"`
+}
+
+// UserInfo describes the claims returned by the userinfo endpoint.
+type UserInfo struct {
+	Subject       string `json:"sub"`
+	Email         string `json:"email,omitempty"`
+	EmailVerified bool   `json:"email_verified,omitempty"`
+	Name          string `json:"name,omitempty"`
 }
 
 type WebFingerLinks struct {

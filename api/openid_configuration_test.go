@@ -63,6 +63,7 @@ func TestGetOpenIDConfiguration_EndpointsAreDerivedFromIssuer(t *testing.T) {
 		"http://auth.example.com/.well-known/openid-configuration/jwks",
 		config.JwksUri,
 	)
+	assert.Equal(t, "http://auth.example.com/userinfo", config.UserinfoEndpoint)
 }
 
 func TestGetOpenIDConfiguration_ContainsSupportedValues(t *testing.T) {
@@ -81,6 +82,9 @@ func TestGetOpenIDConfiguration_ContainsSupportedValues(t *testing.T) {
 		getCodeChallengeMethodsSupported(),
 		config.CodeChallengeMethodsSupported,
 	)
+	assert.Equal(t, []string{"public"}, config.SubjectTypesSupported)
+	assert.Equal(t, []string{"ES256"}, config.IDTokenSigningAlgValuesSupported)
+	assert.Equal(t, getClaimsSupported(), config.ClaimsSupported)
 }
 
 func TestGetOpenIDConfiguration_WithoutDatabaseConnection(t *testing.T) {
