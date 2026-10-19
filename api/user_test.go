@@ -273,7 +273,9 @@ func TestChangePassword_MissingRequestBody_ReturnsBadRequest(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestChangePassword_NoEmailInSession_ReturnsBadRequest(t *testing.T) {
+// old_password does not bind to the current password, so the request is
+// rejected before the session is checked.
+func TestChangePassword_WithoutCurrentPassword_ReturnsBadRequest(t *testing.T) {
 	router, _, _ := getTestRouter()
 	router.POST("/changepassword", ChangePassword)
 
@@ -974,7 +976,7 @@ func userChangePasswordRequest(oldPassword string) *http.Request {
 	})
 }
 
-func TestChangePassword_ValidRequestNoEmailInSession_ReturnsBadRequest(t *testing.T) {
+func TestChangePassword_NoEmailInSession_ReturnsBadRequest(t *testing.T) {
 	router, _ := userGetTestRouter()
 	router.POST("/changepassword", ChangePassword)
 
