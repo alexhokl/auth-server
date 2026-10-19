@@ -12,6 +12,7 @@ import (
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4/errors"
+	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
@@ -52,6 +53,36 @@ func HandleInternalError(_ context.Context, err error) (re *errors.Response) {
 		Error:       err,
 		Description: err.Error(),
 		StatusCode:  http.StatusInternalServerError,
+	}
+}
+
+// GetPreRedirectErrorHandler returns a handler which redirects an error of an
+// authorization request only if the redirect URI is registered with the
+// client. Otherwise, the error is returned so that the request is rejected
+// without redirection (RFC 6749 section 4.1.2.1).
+func GetPreRedirectErrorHandler(srv *server.Server) server.PreRedirectErrorHandler {
+	return func(ctx context.Context, w http.ResponseWriter, req *server.AuthorizeRequest, err error) error {
+		if req == nil {
+			return err
+		}
+		client, clientErr := srv.Manager.GetClient(ctx, req.ClientID)
+		if clientErr != nil {
+			return err
+		}
+		if req.RedirectURI == "" {
+			req.RedirectURI = client.GetDomain()
+		} else if validateErr := manage.DefaultValidateURI(client.GetDomain(), req.RedirectURI); validateErr != nil {
+			return err
+		}
+
+		data, _, _ := srv.GetErrorData(ctx, err)
+		uri, uriErr := srv.GetRedirectURI(req, data)
+		if uriErr != nil {
+			return err
+		}
+		w.Header().Set("Location", uri)
+		w.WriteHeader(http.StatusFound)
+		return nil
 	}
 }
 
@@ -149,6 +180,16 @@ func GetWebFingerConfiguration(c *gin.Context) {
 //	@Router		/authorize [get]
 func GetAuthorizationRequestHandler(srv *server.Server) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// go-oauth2 calls PreRedirectErrorHandler with a nil request on an
+		// invalid request, so it has to be validated beforehand.
+		if _, err := srv.ValidationAuthorizeRequest(r); err != nil {
+			slog.Error(
+				"Invalid authorization request",
+				slog.String("error", err.Error()),
+			)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if err := srv.HandleAuthorizeRequest(w, r); err != nil {
 			slog.Error(
 				"Unable to handle authorization request",

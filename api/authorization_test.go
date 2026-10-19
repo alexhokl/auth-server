@@ -381,6 +381,7 @@ func authzTestOAuthServer(t *testing.T) *server.Server {
 		oauth2.Refreshing,
 	)
 	srv.SetInternalErrorHandler(HandleInternalError)
+	srv.SetPreRedirectErrorHandler(GetPreRedirectErrorHandler(srv))
 	srv.SetUserAuthorizationHandler(GetUserIdInAuthorizationRequest)
 	srv.SetClientInfoHandler(HandleClientInfoInTokenRequest)
 	return srv
@@ -456,9 +457,7 @@ func TestGetAuthorizationRequestHandler_NotAuthenticated_RedirectsWithError(t *t
 	assert.Empty(t, location.Query().Get("code"))
 }
 
-// Note that go-oauth2 redirects the error to the redirect URI even though it
-// does not match the one registered with the client.
-func TestGetAuthorizationRequestHandler_MismatchedRedirectURI_DoesNotIssueCode(t *testing.T) {
+func TestGetAuthorizationRequestHandler_MismatchedRedirectURI_ReturnsBadRequest(t *testing.T) {
 	router := authzTestRouter(t, authzTestOAuthServer(t))
 
 	query := authzAuthorizeQuery()
@@ -466,11 +465,48 @@ func TestGetAuthorizationRequestHandler_MismatchedRedirectURI_DoesNotIssueCode(t
 	req, _ := http.NewRequest(http.MethodGet, "/authorize?"+query.Encode(), nil)
 	w := serveInSession(t, router, authenticatedSession("alex@test.com"), req)
 
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+	assert.Contains(t, w.Body.String(), oauthErrors.ErrInvalidRedirectURI.Error())
+}
+
+func TestGetAuthorizationRequestHandler_NotAuthenticatedMismatchedRedirectURI_ReturnsBadRequest(t *testing.T) {
+	router := authzTestRouter(t, authzTestOAuthServer(t))
+
+	query := authzAuthorizeQuery()
+	query.Set("redirect_uri", "https://evil.test.com/callback")
+	req, _ := http.NewRequest(http.MethodGet, "/authorize?"+query.Encode(), nil)
+	w := serveInSession(t, router, map[string]interface{}{}, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+}
+
+func TestGetAuthorizationRequestHandler_UnknownClient_ReturnsBadRequest(t *testing.T) {
+	router := authzTestRouter(t, authzTestOAuthServer(t))
+
+	query := authzAuthorizeQuery()
+	query.Set("client_id", "unknown-client")
+	req, _ := http.NewRequest(http.MethodGet, "/authorize?"+query.Encode(), nil)
+	w := serveInSession(t, router, map[string]interface{}{}, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+}
+
+func TestGetAuthorizationRequestHandler_NotAuthenticatedWithoutRedirectURI_RedirectsToClientDomain(t *testing.T) {
+	router := authzTestRouter(t, authzTestOAuthServer(t))
+
+	query := authzAuthorizeQuery()
+	query.Del("redirect_uri")
+	req, _ := http.NewRequest(http.MethodGet, "/authorize?"+query.Encode(), nil)
+	w := serveInSession(t, router, map[string]interface{}{}, req)
+
 	assert.Equal(t, http.StatusFound, w.Code)
 	location, err := url.Parse(w.Header().Get("Location"))
 	assert.NoError(t, err)
-	assert.Equal(t, oauthErrors.ErrInvalidRedirectURI.Error(), location.Query().Get("error"))
-	assert.Empty(t, location.Query().Get("code"))
+	assert.Equal(t, "client.test.com", location.Host)
+	assert.Equal(t, oauthErrors.ErrInvalidRequest.Error(), location.Query().Get("error"))
 }
 
 func TestGetAuthorizationRequestHandler_Authenticated_RedirectsWithCode(t *testing.T) {

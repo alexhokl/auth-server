@@ -222,6 +222,7 @@ func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, redi
 	)
 
 	srv.SetInternalErrorHandler(api.HandleInternalError)
+	srv.SetPreRedirectErrorHandler(api.GetPreRedirectErrorHandler(srv))
 	// srv.SetResponseErrorHandler(api.HandleErrorResponse)
 	srv.SetUserAuthorizationHandler(api.GetUserIdInAuthorizationRequest)
 	srv.SetClientInfoHandler(api.HandleClientInfoInTokenRequest)
