@@ -1,11 +1,8 @@
-FROM golang:1.21-alpine3.18 AS builder
+FROM golang:1.26-alpine AS builder
 
-RUN apk update && apk upgrade && \
-    apk add --no-cache git build-base
-
-ENV CGO_ENABLED=1
-ENV app_name auth-server
-ENV repo github.com/alexhokl/${app_name}
+ENV CGO_ENABLED=0
+ENV app_name=auth-server
+ENV repo=github.com/alexhokl/${app_name}
 
 WORKDIR /go/src/${repo}
 
@@ -16,9 +13,9 @@ RUN go mod download
 
 COPY . .
 
-RUN go install -tags musl
+RUN go build -tags=nomsgpack -trimpath -ldflags="-s -w" -o /go/bin/${app_name}
 
-FROM alpine:3.18 AS dev
+FROM alpine:3 AS dev
 
 ENV USERNAME=appuser
 ENV UID=1001
@@ -29,25 +26,16 @@ RUN addgroup -g ${UID} -S ${GROUP} && adduser -u ${UID} -S -G ${GROUP} ${USERNAM
 
 WORKDIR $HOME
 
-COPY --from=builder --chown=appuser:appgroup /go/bin/${app_name} .
+COPY --from=builder --chown=appuser:appgroup /go/bin/auth-server .
+# HTML templates are loaded from ./assets on start-up
+COPY --from=builder --chown=appuser:appgroup /go/src/github.com/alexhokl/auth-server/assets ./assets
 
 VOLUME /mnt/keys
 
-EXPOSE 3000
+EXPOSE 8080
 
 ENTRYPOINT ["./auth-server"]
 
 FROM dev AS production
 
 USER ${USERNAME}
-
-FROM builder AS doc-builder
-
-RUN go get -u github.com/go-swagger/go-swagger/cmd/swagger
-
-RUN swagger generate spec -o ./swagger.json
-
-FROM swaggerapi/swagger-ui:latest AS doc-ui
-
-COPY --from=doc-builder /go/src/github.com/alexhokl/${app_name}/swagger.json /usr/share/nginx/html/swagger.json
-
