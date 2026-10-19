@@ -375,11 +375,14 @@ tasks:
 
   gen-key:
     desc: Generate keys
-    interactive: true
     preconditions:
       - test -d keys
+      - test -f keys/passphrase
     cmds:
-      - step crypto keypair keys/ecdsa.pub keys/ecdsa.key --kty EC --curve "P-256" --password-file keys/passphrase --force
+      # encrypted PKCS #8 (PKCS #5 v2.0), the only encrypted format the server loads
+      - openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -aes-256-cbc -pass file:keys/passphrase -out keys/ecdsa.key
+      - openssl pkey -in keys/ecdsa.key -passin file:keys/passphrase -pubout -out keys/ecdsa.pub
+      - chmod 600 keys/ecdsa.key keys/ecdsa.pub
 
   db-list-clients:
     desc: list clients in database

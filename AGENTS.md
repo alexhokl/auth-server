@@ -70,7 +70,7 @@ Swagger comments (`@Summary`, `@Tags`, `@Router`, ...) are required on new endpo
 
 ## Environment
 
-Config is Viper with prefix `AUTH_`; the authoritative list of what a working dev run needs is the `env:` block of the `run-debug` task. Secrets are read from **file paths**, not values: `AUTH_DATABASE_CONNECTION_STRING_FILE_PATH`, `AUTH_REDIS_PASSWORD_FILE_PATH`, `AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH`. The `keys/` directory holds local dev keys/secrets; generate the signing key with `task gen-key` (requires `step`).
+Config is Viper with prefix `AUTH_`; the authoritative list of what a working dev run needs is the `env:` block of the `run-debug` task. Secrets are read from **file paths**, not values: `AUTH_DATABASE_CONNECTION_STRING_FILE_PATH`, `AUTH_REDIS_PASSWORD_FILE_PATH`, `AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH`. The `keys/` directory holds local dev keys/secrets; generate the signing key with `task gen-key` (requires `openssl`; the server only loads encrypted PKCS #8 keys).
 
 `localhost` is unsuitable for WebAuthn/OIDC testing — the README's Tailscale MagicDNS + Caddy setup (`task caddy`) is the intended path.
 

@@ -160,8 +160,8 @@ Note that the build uses build tag `nomsgpack`; see `Taskfile.yml`.
 Secrets are configured as *file paths* rather than values (for example
 `AUTH_DATABASE_CONNECTION_STRING_FILE_PATH`, `AUTH_REDIS_PASSWORD_FILE_PATH`
 and `AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH`). For local development these files
-live in directory `keys/`. The ECDSA key used for signing tokens can be
-generated with [step](https://smallstep.com/docs/step-cli/).
+live in directory `keys/`. The ECDSA (P-256) key pair used for signing tokens
+is generated with OpenSSL, encrypted with the passphrase in `keys/passphrase`.
 
 ```sh
 task gen-key
@@ -169,8 +169,9 @@ task gen-key
 
 The key must be an encrypted PKCS #8 key (`-----BEGIN ENCRYPTED PRIVATE
 KEY-----`), which is what `task gen-key` produces. A key in the legacy
-`-----BEGIN EC PRIVATE KEY-----` format fails to load with `pkcs8: only PKCS #5
-v2.0 supported` and has to be regenerated.
+`-----BEGIN EC PRIVATE KEY-----` format (as produced by `step crypto keypair`)
+fails to load with `pkcs8: only PKCS #5 v2.0 supported` and has to be
+regenerated.
 
 The full set of environment variables used by a working local run is the `env`
 block of task `run-debug` in `Taskfile.yml`.
