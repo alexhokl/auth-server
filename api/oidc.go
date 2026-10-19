@@ -184,7 +184,9 @@ func OIDCCallback(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
-	if user == nil || isSignUp {
+	// a sign up of an existing user is treated as a sign in as the user has
+	// proven the ownership of the email address with the OIDC provider
+	if user == nil {
 		if !isSignUp {
 			logger.Warn(
 				"User not found",

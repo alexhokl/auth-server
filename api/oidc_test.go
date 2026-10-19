@@ -941,6 +941,38 @@ func TestOIDCCallback_SignUpNewUser_ReturnsFound(t *testing.T) {
 	assert.Equal(t, "new@test.com", oidcReadAuthenticatedEmail(router, req.Cookies()))
 }
 
+func TestOIDCCallback_SignUpExistingUser_SignsIn(t *testing.T) {
+	router, _, mock := getTestRouter()
+	router.GET("/signin/:oidc_name/callback", OIDCCallback)
+
+	oidcExpectGetClient(mock, "google").WillReturnRows(oidcTestClientRows("google"))
+	oidcExpectGetUser(mock, "alex@test.com", true)
+
+	req := oidcCallbackRequest(oidcNewFakeGoogle(t, "alex@test.com"))
+	w := serveInSession(t, router, oidcSignUpSessionValues(t, ""), req)
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "/authenticated", w.Header().Get("Location"))
+	// no user is inserted
+	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.Equal(t, "alex@test.com", oidcReadAuthenticatedEmail(router, req.Cookies()))
+}
+
+func TestOIDCCallback_SignUpExistingDisabledUser_ReturnsUnauthorized(t *testing.T) {
+	router, _, mock := getTestRouter()
+	router.GET("/signin/:oidc_name/callback", OIDCCallback)
+
+	oidcExpectGetClient(mock, "google").WillReturnRows(oidcTestClientRows("google"))
+	oidcExpectGetUser(mock, "alex@test.com", false)
+
+	req := oidcCallbackRequest(oidcNewFakeGoogle(t, "alex@test.com"))
+	w := serveInSession(t, router, oidcSignUpSessionValues(t, ""), req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.Empty(t, oidcReadAuthenticatedEmail(router, req.Cookies()))
+}
+
 func TestOIDCCallback_SignUpCreateUserError_ReturnsInternalServerError(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/signin/:oidc_name/callback", OIDCCallback)
