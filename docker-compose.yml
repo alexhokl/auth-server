@@ -1,5 +1,3 @@
-version: '3'
-
 services:
 
   db:
@@ -15,22 +13,54 @@ services:
       - "$HOME/docker/data:/var/lib/postgresql/data"
       - "$PWD/keys/database_password:/mnt/credentials/database_password:ro"
       - "$PWD/database/extension.sql:/docker-entrypoint-initdb.d/extension.sql:ro"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "appuser", "-d", "auth"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
   redis:
-    image: docker.io/bitnami/redis:7.2
-    environment:
-      REDIS_PASSWORD_FILE: /mnt/redis_password/redis_password
+    image: docker.io/redis:7.2-alpine
+    # the official image does not support a password file
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /mnt/redis_password/redis_password)\""]
     ports:
       - 6379:6379
     volumes:
       - "$PWD/keys/redis_password:/mnt/redis_password/redis_password:ro"
+    healthcheck:
+      # an unauthenticated PING is answered with NOAUTH once the server is up
+      test: ["CMD-SHELL", "redis-cli ping | grep -qE 'PONG|NOAUTH'"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
   auth-server:
     image: docker.io/alexhokl/auth-server:dev
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      AUTH_DATABASE_CONNECTION_STRING: "host=db user=appuser password=Passw0rd dbname=auth port=5432 sslmode=disable"
+      # the same as keys/database_connection_string but with host=db
+      AUTH_DATABASE_CONNECTION_STRING_FILE_PATH: /mnt/keys/database_connection_string_compose
       AUTH_REDIS_HOST: redis:6379
-      AUTH_REDIS_PASSWORD: Passw0rd
+      AUTH_REDIS_PASSWORD_FILE_PATH: /mnt/keys/redis_password
+      AUTH_PRIVATE_KEY_PATH: /mnt/keys/ecdsa.key
+      AUTH_PRIVATE_KEY_PASSWORD_FILE_PATH: /mnt/keys/passphrase
+      AUTH_SEED_USERS_FILE_PATH: /mnt/import_users.json
+      AUTH_DOMAIN: ${AUTH_DOMAIN:-localhost}
+      AUTH_KEY_ID: testing
+      AUTH_WEBFINGER_EMAIL: alex@test.com
+      AUTH_ENFORCE_PKCE: false
+      AUTH_FRONTEND_ENDPOINTS: true
+      AUTH_EXPIRATION_PERIOD: 3600
+      AUTH_ENABLE_OIDC: true
+      AUTH_SESSION_COOKIE_NAME: auth-server
+      AUTH_RELEASE: true
       GIN_MODE: release
     ports:
       - 8080:8080
+    volumes:
+      - "$PWD/keys:/mnt/keys:ro"
+      - "$PWD/import_users.json:/mnt/import_users.json:ro"

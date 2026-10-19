@@ -107,10 +107,6 @@ It is based on the following libraries.
   name
 - User administration is limited to listing (`GET /users`); there is no
   endpoint to update, delete or change roles of a user
-- `Dockerfile` is out of date: it uses a Go 1.21 base image (`go.mod` requires
-  1.26), does not build with tag `nomsgpack`, exposes port `3000` (the server
-  defaults to `8080`) and generates documentation with go-swagger instead of
-  swag
 
 ## Setting up server
 
@@ -171,8 +167,26 @@ generated with [step](https://smallstep.com/docs/step-cli/).
 task gen-key
 ```
 
+The key must be an encrypted PKCS #8 key (`-----BEGIN ENCRYPTED PRIVATE
+KEY-----`), which is what `task gen-key` produces. A key in the legacy
+`-----BEGIN EC PRIVATE KEY-----` format fails to load with `pkcs8: only PKCS #5
+v2.0 supported` and has to be regenerated.
+
 The full set of environment variables used by a working local run is the `env`
 block of task `run-debug` in `Taskfile.yml`.
+
+### Running in Docker
+
+`docker-compose.yml` runs PostgreSQL, Redis and the server image. The server
+reads its secrets from directory `keys/`, mounted at `/mnt/keys`, and expects
+one extra file, `keys/database_connection_string_compose`, which is
+`keys/database_connection_string` with `host=db` instead of `host=localhost`.
+
+```sh
+sed 's/host=localhost/host=db/' keys/database_connection_string > keys/database_connection_string_compose
+task image -- dev
+task up
+```
 
 ### Using localhost
 

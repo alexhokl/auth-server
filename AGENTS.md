@@ -16,7 +16,7 @@ Task runner is [Task](https://taskfile.dev/) (`Taskfile.yml`), not Make. There i
 
 Always pass `-tags=nomsgpack` to `go build`/`go run`; omitting it diverges from the shipped build.
 
-`Dockerfile` is out of date (Go 1.21 base image, no `nomsgpack` tag, `EXPOSE 3000` vs default port 8080, go-swagger doc stage); do not treat it as the reference build.
+`task image -- <tag>` builds the `production` target of `Dockerfile` (static `CGO_ENABLED=0` build with `-tags=nomsgpack`). The runtime image must include `assets/`, as `GetRouter` loads HTML templates from `./assets` on start-up even when frontend endpoints are disabled. The `auth-server` service in `docker-compose.yml` uses tag `dev` and reads secrets from `keys/` mounted at `/mnt/keys`, including `keys/database_connection_string_compose` (host `db`).
 
 Known unimplemented areas are listed under "Implementation status" in `README.md`; keep that list current when closing or adding gaps.
 
