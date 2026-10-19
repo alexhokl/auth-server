@@ -30,6 +30,9 @@ It is based on the following libraries.
 - JSON Web Key Set at `/.well-known/openid-configuration/jwks`
 - [WebFinger](https://www.rfc-editor.org/rfc/rfc7033) at `/.well-known/webfinger`
 - Well-known change-password URL at `/.well-known/change-password`
+- Discovery and JWKS let clients verify access tokens; ID tokens and a
+  `userinfo` endpoint are not issued yet (see
+  [Implementation status](#implementation-status))
 
 ### Authentication
 
@@ -57,7 +60,7 @@ It is based on the following libraries.
 ### Administration
 
 - OAuth client management, restricted to users holding role `admin`
-  (`POST`, `PATCH` and `GET` on `/clients`)
+  (`POST` and `GET` on `/clients`, `PATCH /clients/:client_id`)
 - Scope management, globally via `/scopes` and per client via
   `/clients/:client_id/scopes`
 - OIDC provider management (`GET`, `POST`, `PUT` and `DELETE` on `/oidcclients`)
@@ -75,6 +78,42 @@ It is based on the following libraries.
 - Graceful shutdown on `SIGINT` and `SIGTERM`
 - Configuration through environment variables prefixed with `AUTH_`, with
   secrets read from file paths rather than values
+
+## Implementation status
+
+`task build` and `task test` pass. Unit test coverage of statements by package:
+
+| Package | Coverage |
+|---------|----------|
+| `api` | 40.7% |
+| `db` | 68.4% |
+| `jwthelper` | 95.8% |
+| `server` | 96.1% |
+| `store` | 93.8% |
+
+### Not yet implemented / known gaps
+
+- ID tokens are not issued and there is no `userinfo` endpoint, so the server
+  is an OAuth 2.0 authorization server rather than a full OpenID Provider
+- Sign-in through an external OIDC provider supports Google only; Facebook and
+  Microsoft are stubbed and return "not implemented"
+- Detection of malicious requests (`isMaliciousRequest` in `api/helper.go`) is
+  a no-op
+- The OAuth response error handler (`HandleErrorResponse` in
+  `api/authorization.go`) is a no-op and is not registered
+- Redirects after sign-up (`/signup_continue`) and password change
+  (`/changepassword_completed`) are hard-coded
+- The WebAuthn user display name is the email address rather than the display
+  name
+- User administration is limited to listing (`GET /users`); there is no
+  endpoint to update, delete or change roles of a user
+- The Swagger description of `PATCH /clients/:client_id` still says "not
+  implemented yet" and its route is documented as `/clients/`, although the
+  endpoint is implemented
+- `Dockerfile` is out of date: it uses a Go 1.21 base image (`go.mod` requires
+  1.26), does not build with tag `nomsgpack`, exposes port `3000` (the server
+  defaults to `8080`) and generates documentation with go-swagger instead of
+  swag
 
 ## Setting up server
 

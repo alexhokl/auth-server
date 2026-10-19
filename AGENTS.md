@@ -16,6 +16,10 @@ Task runner is [Task](https://taskfile.dev/) (`Taskfile.yml`), not Make. There i
 
 Always pass `-tags=nomsgpack` to `go build`/`go run`; omitting it diverges from the shipped build.
 
+`Dockerfile` is out of date (Go 1.21 base image, no `nomsgpack` tag, `EXPOSE 3000` vs default port 8080, go-swagger doc stage); do not treat it as the reference build.
+
+Known unimplemented areas are listed under "Implementation status" in `README.md`; keep that list current when closing or adding gaps.
+
 Focused testing:
 ```sh
 go test -v -run TestSignUp ./api/...
@@ -32,7 +36,7 @@ The Taskfile also has many `test-*` tasks (`test-login`, `test-token`, `test-cli
 ## Architecture
 
 - `main.go` — wiring only: Viper config (`cli.ConfigureViper("", "auth", ...)`), DB connect, `db.Migrate(dbConn)` (GORM AutoMigrate — **schema changes go in `db/model.go`, there are no migration files**), seed-user import, then `server.GetRouter(...)`.
-- `server/route.go` — single `GetRouter` function with a very long positional parameter list; all routes and middleware groups live here. Adding a config knob means threading it through `main.go` → `GetRouter`.
+- `server/route.go` — single `GetRouter(dialector, tokenGenerator, privateKey, fidoService, cfg RouterConfig)`; all routes and middleware groups live here. Adding a config knob means adding a field to `RouterConfig` (or its nested `MailConfig`) and setting it from Viper in `main.go`; Viper defaults live in `setDefaultSettings()` in `main.go`.
 - `api/` — Gin handlers, middleware, request/response models.
 - `db/` — GORM models (`model.go`) and queries (`helper.go`).
 - `store/` — go-oauth2 client store. `jwthelper/` — JWT signing.
