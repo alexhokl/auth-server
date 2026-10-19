@@ -109,6 +109,9 @@ It is based on the following libraries.
   (`/changepassword_completed`) are hard-coded
 - The WebAuthn user display name is the email address rather than the display
   name
+- Passkeys (discoverable credentials, usernameless sign-in and platform
+  authenticators) are not supported; WebAuthn sign-in needs the email first and
+  only roaming security keys can be registered (`main.go`, `api/fido.go`)
 - User administration is limited to listing (`GET /users`); there is no
   endpoint to update, delete or change roles of a user
 
@@ -290,10 +293,10 @@ capabilities.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Credential Registration | Complete | Users can register security keys/passkeys |
+| Credential Registration | Complete | Users can register security keys (roaming authenticators) |
 | Passwordless Authentication | Complete | Login using WebAuthn credentials |
 | Credential Management | Complete | List, rename, and delete credentials |
-| Cross-platform Authenticators | Supported | USB keys, NFC, BLE, platform authenticators |
+| Cross-platform Authenticators | Supported | USB keys, NFC, BLE |
 | User Verification | Required | PIN/biometric required |
 | Clone Detection | Implemented | Sign counter tracking |
 
