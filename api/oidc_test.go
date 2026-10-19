@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"gorm.io/gorm"
 )
 
 func TestGetOAuthConfig_Google(t *testing.T) {
@@ -260,13 +261,19 @@ func TestOIDCCallback_ErrorWithDescription_ReturnsBadRequest(t *testing.T) {
 // in this case and it carries on processing the callback; the router here has
 // no database so that it stops right after.
 func TestOIDCCallback_ErrorWithoutDescription_ReturnsBadRequest(t *testing.T) {
-	router := gin.New()
+	router, dbConn, _ := getTestRouter()
 	router.GET("/signin/:oidc_name/callback", OIDCCallback)
+
+	queried := false
+	assert.NoError(t, dbConn.Callback().Query().Before("gorm:query").Register("oidc_test:queried", func(*gorm.DB) {
+		queried = true
+	}))
 
 	req, _ := http.NewRequest(http.MethodGet, "/signin/google/callback?state=expected-state&error=access_denied", nil)
 	w := serveInSession(t, router, oidcSessionValues(t, "expected-state"), req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.False(t, queried, "OIDC client must not be looked up after an error from the provider")
 }
 
 func TestOIDCCallback_NoDatabase_ReturnsInternalServerError(t *testing.T) {

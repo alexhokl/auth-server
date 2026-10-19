@@ -122,6 +122,7 @@ func OIDCCallback(c *gin.Context) {
 		}
 		err = fmt.Errorf("%s", errorParam)
 		handleBadRequest(c, err, "Error from OIDC provider")
+		return
 	}
 
 	dbConn, ok := getDatabaseConnectionFromContext(c)
