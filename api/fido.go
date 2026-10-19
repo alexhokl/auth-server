@@ -375,7 +375,7 @@ func (s *FidoService) DeleteCredential(c *gin.Context) {
 	// convert id from string to []byte
 	idBytes, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
-		handleInternalError(c, err, "Unable to decode credential ID")
+		handleBadRequest(c, err, "Unable to decode credential ID")
 		return
 	}
 
@@ -397,12 +397,12 @@ func (s *FidoService) UpdateCredential(c *gin.Context) {
 	// convert id from string to []byte
 	idBytes, err := base64.RawURLEncoding.DecodeString(id)
 	if err != nil {
-		handleInternalError(c, err, "Unable to decode credential ID")
+		handleBadRequest(c, err, "Unable to decode credential ID")
 		return
 	}
 	var req CredentialNameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		handleInternalError(c, err, "Unable to bind JSON")
+		handleBadRequest(c, err, "Unable to bind JSON")
 		return
 	}
 	if err := db.UpdateCredential(dbConn, email, idBytes, req.Name); err != nil {

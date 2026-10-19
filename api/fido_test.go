@@ -630,14 +630,14 @@ func TestDeleteCredential_NoDatabase_ReturnsInternalServerError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestDeleteCredential_InvalidID_ReturnsInternalServerError(t *testing.T) {
+func TestDeleteCredential_InvalidID_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.DELETE("/fido/credentials/:id", fidoTestService(t).DeleteCredential)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/fido/credentials/not+base64url=", nil)
 	w := serveInSession(t, router, authenticatedSession(fidoTestEmail), req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -687,38 +687,38 @@ func TestUpdateCredential_NoDatabase_ReturnsInternalServerError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestUpdateCredential_InvalidID_ReturnsInternalServerError(t *testing.T) {
+func TestUpdateCredential_InvalidID_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.PATCH("/fido/credentials/:id", fidoTestService(t).UpdateCredential)
 
 	req := fidoJSONRequest(http.MethodPatch, "/fido/credentials/not+base64url=", `{"name":"New name"}`)
 	w := serveInSession(t, router, authenticatedSession(fidoTestEmail), req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 // Note that a malformed request body is reported as an internal server error
 // rather than a bad request.
-func TestUpdateCredential_MalformedBody_ReturnsInternalServerError(t *testing.T) {
+func TestUpdateCredential_MalformedBody_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.PATCH("/fido/credentials/:id", fidoTestService(t).UpdateCredential)
 
 	req := fidoJSONRequest(http.MethodPatch, "/fido/credentials/"+fidoCredentialID(), `{"invalid`)
 	w := serveInSession(t, router, authenticatedSession(fidoTestEmail), req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUpdateCredential_MissingName_ReturnsInternalServerError(t *testing.T) {
+func TestUpdateCredential_MissingName_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.PATCH("/fido/credentials/:id", fidoTestService(t).UpdateCredential)
 
 	req := fidoJSONRequest(http.MethodPatch, "/fido/credentials/"+fidoCredentialID(), `{}`)
 	w := serveInSession(t, router, authenticatedSession(fidoTestEmail), req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
