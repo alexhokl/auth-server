@@ -175,13 +175,13 @@ func CreateRole(db *gorm.DB, role *Role) error {
 	return nil
 }
 
-func HasRole(db *gorm.DB, email string, name string) bool {
+func HasRole(db *gorm.DB, email string, name string) (bool, error) {
 	var count int64
 	dbResult := db.Model(&UserRole{}).Where("user_email = ? AND role_name = ?", email, name).Count(&count)
 	if dbResult.Error != nil {
-		return false
+		return false, dbResult.Error
 	}
-	return count > 0
+	return count > 0, nil
 }
 
 func GetClients(db *gorm.DB) ([]Client, error) {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -29,7 +30,12 @@ func RequiredAuthenticated() gin.HandlerFunc {
 
 func RequiredAdminAccess() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isAdmin(c) {
+		admin, err := isAdmin(c)
+		if err != nil {
+			handleInternalError(c, err, "Unable to check admin access")
+			return
+		}
+		if !admin {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
@@ -97,13 +103,13 @@ func getDatabaseConnectionFromContext(c *gin.Context) (*gorm.DB, bool) {
 	return dbConn, true
 }
 
-func isAdmin(c *gin.Context) bool {
+func isAdmin(c *gin.Context) (bool, error) {
 	if !isAuthenticated(c) {
-		return false
+		return false, nil
 	}
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
-		return false
+		return false, fmt.Errorf("missing configuration for database")
 	}
 	email := getEmailFromSession(c)
 	return db.HasRole(dbConn, email, "admin")

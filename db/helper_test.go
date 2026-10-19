@@ -325,8 +325,9 @@ func TestHasRole_True(t *testing.T) {
 		WithArgs("alex@test.com", "admin").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	hasRole := db.HasRole(dbConn, "alex@test.com", "admin")
+	hasRole, err := db.HasRole(dbConn, "alex@test.com", "admin")
 
+	assert.NoError(t, err)
 	assert.True(t, hasRole)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -338,8 +339,9 @@ func TestHasRole_False(t *testing.T) {
 		WithArgs("alex@test.com", "admin").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	hasRole := db.HasRole(dbConn, "alex@test.com", "admin")
+	hasRole, err := db.HasRole(dbConn, "alex@test.com", "admin")
 
+	assert.NoError(t, err)
 	assert.False(t, hasRole)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -1425,8 +1427,9 @@ func TestHasRole_DatabaseError(t *testing.T) {
 		WithArgs("alex@test.com", "admin").
 		WillReturnError(errDatabase)
 
-	hasRole := db.HasRole(dbConn, "alex@test.com", "admin")
+	hasRole, err := db.HasRole(dbConn, "alex@test.com", "admin")
 
+	assert.ErrorIs(t, err, errDatabase)
 	assert.False(t, hasRole)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
