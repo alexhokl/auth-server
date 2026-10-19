@@ -246,6 +246,30 @@ func TestOIDCCallback_StateMismatch_ReturnsBadRequest(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestOIDCCallback_ValidState_DeletesOIDCSession(t *testing.T) {
+	router, _, mock := getTestRouter()
+	router.GET("/signin/:oidc_name/callback", OIDCCallback)
+
+	oidcExpectGetClient(mock, "google").WillReturnRows(oidcTestClientRows("google"))
+	oidcExpectGetUser(mock, "alex@test.com", true)
+
+	req := oidcCallbackRequest(oidcNewFakeGoogle(t, "alex@test.com"))
+	w := serveInSession(t, router, oidcSessionValues(t, "expected-state"), req)
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+
+	// the same state cannot be used again
+	replay := oidcCallbackRequest(oidcNewFakeGoogle(t, "alex@test.com"))
+	for _, cookie := range req.Cookies() {
+		replay.AddCookie(cookie)
+	}
+	replayResponse := httptest.NewRecorder()
+	router.ServeHTTP(replayResponse, replay)
+
+	assert.Equal(t, http.StatusInternalServerError, replayResponse.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestOIDCCallback_ErrorWithDescription_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/signin/:oidc_name/callback", OIDCCallback)

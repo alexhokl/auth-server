@@ -217,17 +217,17 @@ func mwRunWithInvalidSessionCookie(t *testing.T, fn func(c *gin.Context)) {
 	router.ServeHTTP(httptest.NewRecorder(), req)
 }
 
-func TestDeleteOIDCSession_DeletesKeyOfOIDCName(t *testing.T) {
+func TestDeleteOIDCSession_DeletesOIDCSession(t *testing.T) {
 	runInSession(t, func(c *gin.Context) {
-		assert.NoError(t, setValuesToSession(c, map[string]interface{}{
-			"oidc_google": "some value",
-			"oidc_github": "another value",
-		}))
+		assert.NoError(t, setOIDCSession(c, "google", "state", "S256", "challenge", "verifier", "/authorize", false))
+		assert.NoError(t, setEmailToSession(c, "alex@test.com"))
 
 		assert.NoError(t, deleteOIDCSession(c, "google"))
 
-		assert.False(t, isKeyExistInSession(c, "oidc_google"))
-		assert.True(t, isKeyExistInSession(c, "oidc_github"))
+		assert.False(t, isKeyExistInSession(c, sessionOIDCKey))
+		assert.True(t, isKeyExistInSession(c, sessionEmailKey))
+		_, _, _, _, _, _, err := getOIDCSession(c, "google")
+		assert.Error(t, err)
 	})
 }
 

@@ -162,12 +162,12 @@ func getOIDCSession(c *gin.Context, _ string) (state string, pkceCodeChallengeMe
 	return
 }
 
-func deleteOIDCSession(c *gin.Context, oidcName string) error {
+func deleteOIDCSession(c *gin.Context, _ string) error {
 	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
 	if err != nil {
 		return err
 	}
-	store.Delete(fmt.Sprintf("oidc_%s", oidcName))
+	store.Delete(sessionOIDCKey)
 	if err := store.Save(); err != nil {
 		return err
 	}

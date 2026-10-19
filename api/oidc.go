@@ -101,6 +101,12 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
+	// the state and the PKCE verifier are for one callback only
+	if err := deleteOIDCSession(c, oidcName); err != nil {
+		handleInternalError(c, err, "Unable to delete OIDC session")
+		return
+	}
+
 	// codeChallenge := c.Query("code_challenge")
 	// if codeChallenge != originCodeChallenge {
 	// 	handleBadRequest(c, fmt.Errorf("expected code challenge [%s] but got [%s]", originCodeChallenge, codeChallenge), "Invalid code challenge")
