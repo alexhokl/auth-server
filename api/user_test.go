@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/database"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -324,8 +325,8 @@ func TestConfirm_NotFound_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/confirm/:otp", Confirm)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("invalid-otp", 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("invalid-otp", db.ConfirmationPurposeSignUp, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	w := httptest.NewRecorder()
@@ -341,10 +342,10 @@ func TestConfirm_Expired_ReturnsGone(t *testing.T) {
 
 	// Return an expired confirmation
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("expired-otp", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
-			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("expired-otp", db.ConfirmationPurposeSignUp, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}).
+			AddRow("alex@test.com", "expired-otp", expiredTime, 0, db.ConfirmationPurposeSignUp))
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/confirm/expired-otp", nil)
@@ -359,16 +360,14 @@ func TestConfirm_Valid_ReturnsNoContent(t *testing.T) {
 
 	// Return a valid confirmation
 	futureTime := time.Now().Add(1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("valid-otp", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
-			AddRow("alex@test.com", "valid-otp", futureTime, 0))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("valid-otp", db.ConfirmationPurposeSignUp, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}).
+			AddRow("alex@test.com", "valid-otp", futureTime, 0, db.ConfirmationPurposeSignUp))
 
 	// Expect transaction for confirmation
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
-		WithArgs(sqlmock.AnyArg(), "valid-otp").
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	userExpectUseConfirmation(mock, "valid-otp", db.ConfirmationPurposeSignUp, 1, nil)
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
 		WithArgs(true, "alex@test.com").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -388,8 +387,8 @@ func TestConfirmResetPassword_NotFound_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.GET("/resetpassword/:otp", ConfirmResetPassword)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("invalid-otp", 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("invalid-otp", db.ConfirmationPurposeResetPassword, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	w := httptest.NewRecorder()
@@ -404,10 +403,10 @@ func TestConfirmResetPassword_Expired_ReturnsGone(t *testing.T) {
 	router.GET("/resetpassword/:otp", ConfirmResetPassword)
 
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("expired-otp", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
-			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("expired-otp", db.ConfirmationPurposeResetPassword, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}).
+			AddRow("alex@test.com", "expired-otp", expiredTime, 0, db.ConfirmationPurposeResetPassword))
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/resetpassword/expired-otp", nil)
@@ -434,8 +433,8 @@ func TestNewPassword_InvalidOTP_ReturnsNotFound(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/newpassword", NewPassword)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("invalid-otp", 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("invalid-otp", db.ConfirmationPurposeResetPassword, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	form := url.Values{}
@@ -455,10 +454,10 @@ func TestNewPassword_ExpiredOTP_ReturnsGone(t *testing.T) {
 	router.POST("/newpassword", NewPassword)
 
 	expiredTime := time.Now().Add(-1 * time.Hour).Unix()
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("expired-otp", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
-			AddRow("alex@test.com", "expired-otp", expiredTime, 0))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("expired-otp", db.ConfirmationPurposeResetPassword, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}).
+			AddRow("alex@test.com", "expired-otp", expiredTime, 0, db.ConfirmationPurposeResetPassword))
 
 	form := url.Values{}
 	form.Add("otp", "expired-otp")
@@ -478,7 +477,7 @@ func TestGenerateConfirmationInfo_ReturnsValidInfo(t *testing.T) {
 	email := "test@example.com"
 	expiryPeriod := int64(3600)
 
-	info, err := generateConfirmationInfo(email, expiryPeriod)
+	info, err := generateConfirmationInfo(email, expiryPeriod, db.ConfirmationPurposeSignUp)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, info)
@@ -486,6 +485,7 @@ func TestGenerateConfirmationInfo_ReturnsValidInfo(t *testing.T) {
 	assert.NotEmpty(t, info.OneTimePassword)
 	assert.Greater(t, info.ExpiryTime, time.Now().Unix())
 	assert.Equal(t, int64(0), info.ConfirmedTime)
+	assert.Equal(t, db.ConfirmationPurposeSignUp, info.Purpose)
 }
 
 func TestGenerateConfirmationInfo_ExpiryTimeIsCorrect(t *testing.T) {
@@ -493,7 +493,7 @@ func TestGenerateConfirmationInfo_ExpiryTimeIsCorrect(t *testing.T) {
 	expiryPeriod := int64(7200) // 2 hours
 
 	beforeTime := time.Now().Unix()
-	info, err := generateConfirmationInfo(email, expiryPeriod)
+	info, err := generateConfirmationInfo(email, expiryPeriod, db.ConfirmationPurposeSignUp)
 	afterTime := time.Now().Unix()
 
 	assert.NoError(t, err)
@@ -633,10 +633,10 @@ func userExpectCreateUser(mock sqlmock.Sqlmock, email string, err error) {
 	mock.ExpectCommit()
 }
 
-func userExpectCreateConfirmation(mock sqlmock.Sqlmock, email string, err error) {
+func userExpectCreateConfirmation(mock sqlmock.Sqlmock, email string, purpose string, err error) {
 	mock.ExpectBegin()
-	exec := mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations" ("user_email","one_time_password","expiry_time","confirmed_time") VALUES ($1,$2,$3,$4)`)).
-		WithArgs(email, sqlmock.AnyArg(), sqlmock.AnyArg(), 0)
+	exec := mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations" ("user_email","one_time_password","expiry_time","confirmed_time","purpose") VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("user_email") DO UPDATE SET`)).
+		WithArgs(email, sqlmock.AnyArg(), sqlmock.AnyArg(), 0, purpose)
 	if err != nil {
 		exec.WillReturnError(err)
 		mock.ExpectRollback()
@@ -659,17 +659,45 @@ func userExpectChangePassword(mock sqlmock.Sqlmock, email string, err error) {
 	mock.ExpectCommit()
 }
 
-func userExpectGetConfirmation(mock sqlmock.Sqlmock, otp string, expiryTime int64) {
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs(otp, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
-			AddRow(userTestEmail, otp, expiryTime, 0))
+func userExpectGetConfirmation(mock sqlmock.Sqlmock, otp string, purpose string, expiryTime int64) {
+	userExpectGetConfirmationConfirmedAt(mock, otp, purpose, expiryTime, 0)
 }
 
-func userExpectGetConfirmationError(mock sqlmock.Sqlmock, otp string, err error) {
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs(otp, 1).
+func userExpectGetConfirmationConfirmedAt(mock sqlmock.Sqlmock, otp string, purpose string, expiryTime int64, confirmedTime int64) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs(otp, purpose, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}).
+			AddRow(userTestEmail, otp, expiryTime, confirmedTime, purpose))
+}
+
+func userExpectGetConfirmationError(mock sqlmock.Sqlmock, otp string, purpose string, err error) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs(otp, purpose, 1).
 		WillReturnError(err)
+}
+
+func userExpectUseConfirmation(mock sqlmock.Sqlmock, otp string, purpose string, rowsAffected int64, err error) {
+	exec := mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), otp, purpose, 0)
+	if err != nil {
+		exec.WillReturnError(err)
+		return
+	}
+	exec.WillReturnResult(sqlmock.NewResult(0, rowsAffected))
+}
+
+func userExpectResetPassword(mock sqlmock.Sqlmock, otp string, email string, err error) {
+	mock.ExpectBegin()
+	userExpectUseConfirmation(mock, otp, db.ConfirmationPurposeResetPassword, 1, nil)
+	exec := mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "password_hash"=$1 WHERE email = $2`)).
+		WithArgs(sqlmock.AnyArg(), email)
+	if err != nil {
+		exec.WillReturnError(err)
+		mock.ExpectRollback()
+		return
+	}
+	exec.WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 }
 
 func userSignUpRequest() *http.Request {
@@ -721,7 +749,7 @@ func TestSignUp_CreateConfirmationError_ReturnsInternalServerError(t *testing.T)
 	router, mock := userGetTestRouter()
 	router.POST("/signup", SignUp)
 	userExpectCreateUser(mock, userTestEmail, nil)
-	userExpectCreateConfirmation(mock, userTestEmail, userErrDatabase)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeSignUp, userErrDatabase)
 
 	w := userServe(router, userSignUpRequest())
 
@@ -735,7 +763,7 @@ func TestSignUp_MailError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.POST("/signup", SignUp)
 	userExpectCreateUser(mock, userTestEmail, nil)
-	userExpectCreateConfirmation(mock, userTestEmail, nil)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeSignUp, nil)
 
 	w := userServe(router, userSignUpRequest())
 
@@ -748,7 +776,7 @@ func TestSignUp_Success_ReturnsFound(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.POST("/signup", SignUp)
 	userExpectCreateUser(mock, userTestEmail, nil)
-	userExpectCreateConfirmation(mock, userTestEmail, nil)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeSignUp, nil)
 
 	w := userServe(router, userSignUpRequest())
 
@@ -1085,7 +1113,7 @@ func TestResetPassword_CreateConfirmationError_ReturnsInternalServerError(t *tes
 	router, mock := userGetTestRouter()
 	router.POST("/resetpassword", ResetPassword)
 	userExpectGetUser(mock, userTestEmail, userTestPasswordHash, true)
-	userExpectCreateConfirmation(mock, userTestEmail, userErrDatabase)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeResetPassword, userErrDatabase)
 
 	w := userServe(router, userResetPasswordRequest())
 
@@ -1099,7 +1127,7 @@ func TestResetPassword_MailError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.POST("/resetpassword", ResetPassword)
 	userExpectGetUser(mock, userTestEmail, userTestPasswordHash, true)
-	userExpectCreateConfirmation(mock, userTestEmail, nil)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeResetPassword, nil)
 
 	w := userServe(router, userResetPasswordRequest())
 
@@ -1112,7 +1140,7 @@ func TestResetPassword_Success_ReturnsNoContent(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.POST("/resetpassword", ResetPassword)
 	userExpectGetUser(mock, userTestEmail, userTestPasswordHash, true)
-	userExpectCreateConfirmation(mock, userTestEmail, nil)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeResetPassword, nil)
 
 	w := userServe(router, userResetPasswordRequest())
 
@@ -1141,7 +1169,7 @@ func TestConfirm_NoDatabaseConnection_ReturnsInternalServerError(t *testing.T) {
 func TestConfirm_QueryError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.GET("/confirm/:otp", Confirm)
-	userExpectGetConfirmationError(mock, "some-otp", userErrDatabase)
+	userExpectGetConfirmationError(mock, "some-otp", db.ConfirmationPurposeSignUp, userErrDatabase)
 
 	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-otp", nil)
 	w := userServe(router, req)
@@ -1153,11 +1181,9 @@ func TestConfirm_QueryError_ReturnsInternalServerError(t *testing.T) {
 func TestConfirm_ConfirmUserError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.GET("/confirm/:otp", Confirm)
-	userExpectGetConfirmation(mock, "some-otp", time.Now().Add(time.Hour).Unix())
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeSignUp, time.Now().Add(time.Hour).Unix())
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
-		WithArgs(sqlmock.AnyArg(), "some-otp").
-		WillReturnError(userErrDatabase)
+	userExpectUseConfirmation(mock, "some-otp", db.ConfirmationPurposeSignUp, 0, userErrDatabase)
 	mock.ExpectRollback()
 
 	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-otp", nil)
@@ -1182,7 +1208,7 @@ func TestConfirmResetPassword_NoDatabaseConnection_ReturnsInternalServerError(t 
 func TestConfirmResetPassword_QueryError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.GET("/confirmresetpassword/:otp", ConfirmResetPassword)
-	userExpectGetConfirmationError(mock, "some-otp", userErrDatabase)
+	userExpectGetConfirmationError(mock, "some-otp", db.ConfirmationPurposeResetPassword, userErrDatabase)
 
 	req, _ := http.NewRequest(http.MethodGet, "/confirmresetpassword/some-otp", nil)
 	w := userServe(router, req)
@@ -1195,7 +1221,7 @@ func TestConfirmResetPassword_Valid_ReturnsOK(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.SetHTMLTemplate(template.Must(template.New("new_password.tmpl").Parse(`otp={{.otp}}`)))
 	router.GET("/confirmresetpassword/:otp", ConfirmResetPassword)
-	userExpectGetConfirmation(mock, "some-otp", time.Now().Add(time.Hour).Unix())
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix())
 
 	req, _ := http.NewRequest(http.MethodGet, "/confirmresetpassword/some-otp", nil)
 	w := userServe(router, req)
@@ -1226,7 +1252,7 @@ func TestNewPassword_NoDatabaseConnection_ReturnsInternalServerError(t *testing.
 func TestNewPassword_QueryError_ReturnsInternalServerError(t *testing.T) {
 	router, mock := userGetTestRouter()
 	router.POST("/newpassword", NewPassword)
-	userExpectGetConfirmationError(mock, "some-otp", userErrDatabase)
+	userExpectGetConfirmationError(mock, "some-otp", db.ConfirmationPurposeResetPassword, userErrDatabase)
 
 	w := userServe(router, userNewPasswordRequest())
 
@@ -1234,12 +1260,12 @@ func TestNewPassword_QueryError_ReturnsInternalServerError(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestNewPassword_ChangePasswordError_ReturnsInternalServerError(t *testing.T) {
+func TestNewPassword_ResetPasswordError_ReturnsInternalServerError(t *testing.T) {
 	mailServer := useTestMailServer(t, http.StatusOK)
 	router, mock := userGetTestRouter()
 	router.POST("/newpassword", NewPassword)
-	userExpectGetConfirmation(mock, "some-otp", time.Now().Add(time.Hour).Unix())
-	userExpectChangePassword(mock, userTestEmail, userErrDatabase)
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix())
+	userExpectResetPassword(mock, "some-otp", userTestEmail, userErrDatabase)
 
 	w := userServe(router, userNewPasswordRequest())
 
@@ -1252,8 +1278,8 @@ func TestNewPassword_MailError_ReturnsInternalServerError(t *testing.T) {
 	useTestMailServer(t, http.StatusInternalServerError)
 	router, mock := userGetTestRouter()
 	router.POST("/newpassword", NewPassword)
-	userExpectGetConfirmation(mock, "some-otp", time.Now().Add(time.Hour).Unix())
-	userExpectChangePassword(mock, userTestEmail, nil)
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix())
+	userExpectResetPassword(mock, "some-otp", userTestEmail, nil)
 
 	w := userServe(router, userNewPasswordRequest())
 
@@ -1265,8 +1291,8 @@ func TestNewPassword_Success_ReturnsNoContent(t *testing.T) {
 	mailServer := useTestMailServer(t, http.StatusOK)
 	router, mock := userGetTestRouter()
 	router.POST("/newpassword", NewPassword)
-	userExpectGetConfirmation(mock, "some-otp", time.Now().Add(time.Hour).Unix())
-	userExpectChangePassword(mock, userTestEmail, nil)
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix())
+	userExpectResetPassword(mock, "some-otp", userTestEmail, nil)
 
 	w := userServe(router, userNewPasswordRequest())
 
@@ -1276,6 +1302,90 @@ func TestNewPassword_Success_ReturnsNoContent(t *testing.T) {
 		assert.Equal(t, []string{userTestEmail}, requests[0].To)
 		assert.Equal(t, mailTestPasswordChangedSubject, requests[0].Subject)
 	}
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// One-time password reuse Tests
+
+func TestConfirm_UsedConfirmation_ReturnsGone(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/confirm/:otp", Confirm)
+	userExpectGetConfirmationConfirmedAt(mock, "some-otp", db.ConfirmationPurposeSignUp, time.Now().Add(time.Hour).Unix(), time.Now().Unix())
+
+	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-otp", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusGone, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConfirm_ConfirmationUsedConcurrently_ReturnsGone(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/confirm/:otp", Confirm)
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeSignUp, time.Now().Add(time.Hour).Unix())
+	mock.ExpectBegin()
+	userExpectUseConfirmation(mock, "some-otp", db.ConfirmationPurposeSignUp, 0, nil)
+	mock.ExpectRollback()
+
+	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-otp", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusGone, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConfirmResetPassword_UsedConfirmation_ReturnsGone(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/confirmresetpassword/:otp", ConfirmResetPassword)
+	userExpectGetConfirmationConfirmedAt(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix(), time.Now().Unix())
+
+	req, _ := http.NewRequest(http.MethodGet, "/confirmresetpassword/some-otp", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusGone, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNewPassword_UsedConfirmation_ReturnsGone(t *testing.T) {
+	mailServer := useTestMailServer(t, http.StatusOK)
+	router, mock := userGetTestRouter()
+	router.POST("/newpassword", NewPassword)
+	userExpectGetConfirmationConfirmedAt(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix(), time.Now().Unix())
+
+	w := userServe(router, userNewPasswordRequest())
+
+	assert.Equal(t, http.StatusGone, w.Code)
+	assert.Empty(t, mailServer.Requests())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNewPassword_ConfirmationUsedConcurrently_ReturnsGone(t *testing.T) {
+	mailServer := useTestMailServer(t, http.StatusOK)
+	router, mock := userGetTestRouter()
+	router.POST("/newpassword", NewPassword)
+	userExpectGetConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, time.Now().Add(time.Hour).Unix())
+	mock.ExpectBegin()
+	userExpectUseConfirmation(mock, "some-otp", db.ConfirmationPurposeResetPassword, 0, nil)
+	mock.ExpectRollback()
+
+	w := userServe(router, userNewPasswordRequest())
+
+	assert.Equal(t, http.StatusGone, w.Code)
+	assert.Empty(t, mailServer.Requests())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNewPassword_SignUpOTP_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/newpassword", NewPassword)
+	// a sign up one-time password does not match the purpose of resetting password
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2`)).
+		WithArgs("some-otp", db.ConfirmationPurposeResetPassword, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time", "purpose"}))
+
+	w := userServe(router, userNewPasswordRequest())
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

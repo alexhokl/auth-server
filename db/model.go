@@ -58,8 +58,12 @@ type UserConfirmation struct {
 	OneTimePassword string `gorm:"not null"`
 	ExpiryTime      int64  `gorm:"not null"`
 	ConfirmedTime   int64  `gorm:"not null"`
+	Purpose         string `gorm:"not null;default:''"`
 	User            User   `gorm:"foreignKey:UserEmail"`
 }
+
+const ConfirmationPurposeSignUp = "sign_up"
+const ConfirmationPurposeResetPassword = "reset_password"
 
 type Scope struct {
 	Name string `gorm:"primary_key;unique;not null"`

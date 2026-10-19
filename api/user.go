@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -45,7 +46,7 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod)
+	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod, db.ConfirmationPurposeSignUp)
 	if err != nil {
 		handleInternalError(c, err, "Unable to generate confirmation info")
 		return
@@ -74,7 +75,7 @@ func Confirm(c *gin.Context) {
 		return
 	}
 
-	confirmationInfo, err := db.GetConfirmation(dbConn, otp)
+	confirmationInfo, err := db.GetConfirmation(dbConn, otp, db.ConfirmationPurposeSignUp)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get confirmation info")
 		return
@@ -85,12 +86,16 @@ func Confirm(c *gin.Context) {
 		return
 	}
 
-	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+	if isConfirmationUsedOrExpired(confirmationInfo) {
 		c.AbortWithStatus(http.StatusGone)
 		return
 	}
 
 	if err := db.ConfirmUser(dbConn, confirmationInfo); err != nil {
+		if errors.Is(err, db.ErrConfirmationUsed) {
+			c.AbortWithStatus(http.StatusGone)
+			return
+		}
 		handleInternalError(c, err, "Unable to confirm user")
 		return
 	}
@@ -417,7 +422,7 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod)
+	confirmationInfo, err := generateConfirmationInfo(user.Email, expirationPeriod, db.ConfirmationPurposeResetPassword)
 	if err != nil {
 		handleInternalError(c, err, "Unable to generate confirmation info")
 		return
@@ -445,7 +450,7 @@ func ConfirmResetPassword(c *gin.Context) {
 		return
 	}
 
-	confirmationInfo, err := db.GetConfirmation(dbConn, otp)
+	confirmationInfo, err := db.GetConfirmation(dbConn, otp, db.ConfirmationPurposeResetPassword)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get confirmation info")
 		return
@@ -456,7 +461,7 @@ func ConfirmResetPassword(c *gin.Context) {
 		return
 	}
 
-	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+	if isConfirmationUsedOrExpired(confirmationInfo) {
 		c.AbortWithStatus(http.StatusGone)
 		return
 	}
@@ -479,7 +484,7 @@ func NewPassword(c *gin.Context) {
 		return
 	}
 
-	confirmationInfo, err := db.GetConfirmation(dbConn, req.OTP)
+	confirmationInfo, err := db.GetConfirmation(dbConn, req.OTP, db.ConfirmationPurposeResetPassword)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get confirmation info")
 		return
@@ -490,12 +495,16 @@ func NewPassword(c *gin.Context) {
 		return
 	}
 
-	if confirmationInfo.ExpiryTime < time.Now().Unix() {
+	if isConfirmationUsedOrExpired(confirmationInfo) {
 		c.AbortWithStatus(http.StatusGone)
 		return
 	}
 
-	if err := db.ChangePassword(dbConn, confirmationInfo.UserEmail, getPasswordHash(req.NewPassword)); err != nil {
+	if err := db.ResetPassword(dbConn, confirmationInfo, getPasswordHash(req.NewPassword)); err != nil {
+		if errors.Is(err, db.ErrConfirmationUsed) {
+			c.AbortWithStatus(http.StatusGone)
+			return
+		}
 		handleInternalError(c, err, "Unable to change password")
 		return
 	}
@@ -513,7 +522,11 @@ func RedirectToChangePasswordUI(c *gin.Context) {
 	c.Redirect(http.StatusFound, fmt.Sprintf("%s/changepassword", issuer))
 }
 
-func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirmation, error) {
+func isConfirmationUsedOrExpired(confirmation *db.UserConfirmation) bool {
+	return confirmation.ConfirmedTime != 0 || confirmation.ExpiryTime < time.Now().Unix()
+}
+
+func generateConfirmationInfo(email string, expiryPeriod int64, purpose string) (*db.UserConfirmation, error) {
 	otp, err := generateOneTimePassword(128)
 	if err != nil {
 		return nil, err
@@ -526,6 +539,7 @@ func generateConfirmationInfo(email string, expiryPeriod int64) (*db.UserConfirm
 		OneTimePassword: otp,
 		ExpiryTime:      expiryTime.Unix(),
 		ConfirmedTime:   0,
+		Purpose:         purpose,
 	}, nil
 }
 

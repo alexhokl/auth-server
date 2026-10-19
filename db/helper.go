@@ -220,16 +220,25 @@ func ExpireAllConfirmation(db *gorm.DB, email string) error {
 	return nil
 }
 
+// ErrConfirmationUsed is returned when a confirmation has been used already.
+var ErrConfirmationUsed = errors.New("confirmation has been used")
+
+// CreateConfirmation creates a confirmation of a user, replacing the existing
+// one so that only the latest one-time password of a user is valid.
 func CreateConfirmation(db *gorm.DB, confirmation *UserConfirmation) error {
-	if dbResult := db.Create(confirmation); dbResult.Error != nil {
+	dbResult := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_email"}},
+		DoUpdates: clause.AssignmentColumns([]string{"one_time_password", "expiry_time", "confirmed_time", "purpose"}),
+	}).Create(confirmation)
+	if dbResult.Error != nil {
 		return dbResult.Error
 	}
 	return nil
 }
 
-func GetConfirmation(db *gorm.DB, otp string) (*UserConfirmation, error) {
+func GetConfirmation(db *gorm.DB, otp string, purpose string) (*UserConfirmation, error) {
 	var confirmation UserConfirmation
-	if err := db.Where("one_time_password = ?", otp).First(&confirmation).Error; err != nil {
+	if err := db.Where("one_time_password = ? AND purpose = ?", otp, purpose).First(&confirmation).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -238,15 +247,41 @@ func GetConfirmation(db *gorm.DB, otp string) (*UserConfirmation, error) {
 	return &confirmation, nil
 }
 
+// useConfirmation marks a confirmation as used and returns
+// ErrConfirmationUsed if it has been used already.
+func useConfirmation(tx *gorm.DB, confirmation *UserConfirmation) error {
+	dbResult := tx.Model(&UserConfirmation{}).
+		Where("one_time_password = ? AND purpose = ? AND confirmed_time = ?", confirmation.OneTimePassword, confirmation.Purpose, 0).
+		Update("confirmed_time", time.Now().Unix())
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	if dbResult.RowsAffected == 0 {
+		return ErrConfirmationUsed
+	}
+	return nil
+}
+
 func ConfirmUser(db *gorm.DB, confirmation *UserConfirmation) error {
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&UserConfirmation{}).Where("one_time_password = ?", confirmation.OneTimePassword).Update("confirmed_time", time.Now().Unix()).Error; err != nil {
+		if err := useConfirmation(tx, confirmation); err != nil {
 			return err
 		}
 		if err := tx.Model(&User{}).Where("email = ?", confirmation.UserEmail).Update("is_enabled", true).Error; err != nil {
 			return err
 		}
 		return nil
+	})
+}
+
+// ResetPassword changes the password of the user of a confirmation and marks
+// the confirmation as used.
+func ResetPassword(db *gorm.DB, confirmation *UserConfirmation, passwordHash []byte) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := useConfirmation(tx, confirmation); err != nil {
+			return err
+		}
+		return ChangePassword(tx, confirmation.UserEmail, passwordHash)
 	})
 }
 

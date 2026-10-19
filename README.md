@@ -54,7 +54,9 @@ It is based on the following libraries.
   (`POST /resetpassword` and `GET`/`POST /confirmresetpassword/:otp`)
 - Confirmation, password-changed and password-reset emails sent through
   [Resend](https://resend.com), with configurable subjects and sender
-- One-time passwords expire after `AUTH_EXPIRATION_PERIOD` seconds
+- One-time passwords expire after `AUTH_EXPIRATION_PERIOD` seconds, can be
+  used once, and only for the purpose (sign-up or password reset) they were
+  issued for; issuing a new one replaces the previous one of the user
 - Administrators seeded from a JSON file on the first start of an empty database
 
 ### Administration

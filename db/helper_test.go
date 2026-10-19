@@ -417,11 +417,11 @@ func TestGetConfirmation_Found(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"user_email", "one_time_password", "expiry_time", "confirmed_time"}).
 		AddRow("alex@test.com", otp, expiryTime, 0)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs(otp, 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs(otp, db.ConfirmationPurposeSignUp, 1).
 		WillReturnRows(rows)
 
-	confirmation, err := db.GetConfirmation(dbConn, otp)
+	confirmation, err := db.GetConfirmation(dbConn, otp, db.ConfirmationPurposeSignUp)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, confirmation)
@@ -433,11 +433,11 @@ func TestGetConfirmation_Found(t *testing.T) {
 func TestGetConfirmation_NotFound(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("invalid", 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("invalid", db.ConfirmationPurposeSignUp, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
-	confirmation, err := db.GetConfirmation(dbConn, "invalid")
+	confirmation, err := db.GetConfirmation(dbConn, "invalid", db.ConfirmationPurposeSignUp)
 
 	assert.NoError(t, err)
 	assert.Nil(t, confirmation)
@@ -894,11 +894,13 @@ func TestCreateConfirmation_Success(t *testing.T) {
 		OneTimePassword: "abc123",
 		ExpiryTime:      time.Now().Add(1 * time.Hour).Unix(),
 		ConfirmedTime:   0,
+		Purpose:         db.ConfirmationPurposeResetPassword,
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations"`)).
-		WithArgs(confirmation.UserEmail, confirmation.OneTimePassword, confirmation.ExpiryTime, confirmation.ConfirmedTime).
+	// replaces the existing confirmation of the user
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations" ("user_email","one_time_password","expiry_time","confirmed_time","purpose") VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("user_email") DO UPDATE SET "one_time_password"="excluded"."one_time_password","expiry_time"="excluded"."expiry_time","confirmed_time"="excluded"."confirmed_time","purpose"="excluded"."purpose"`)).
+		WithArgs(confirmation.UserEmail, confirmation.OneTimePassword, confirmation.ExpiryTime, confirmation.ConfirmedTime, confirmation.Purpose).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -916,11 +918,12 @@ func TestConfirmUser_Success(t *testing.T) {
 	confirmation := &db.UserConfirmation{
 		UserEmail:       "alex@test.com",
 		OneTimePassword: "abc123",
+		Purpose:         db.ConfirmationPurposeSignUp,
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
-		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword, db.ConfirmationPurposeSignUp, 0).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
 		WithArgs(true, confirmation.UserEmail).
@@ -930,6 +933,101 @@ func TestConfirmUser_Success(t *testing.T) {
 	err := db.ConfirmUser(dbConn, confirmation)
 
 	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConfirmUser_ConfirmationUsed(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+		Purpose:         db.ConfirmationPurposeSignUp,
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword, db.ConfirmationPurposeSignUp, 0).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	err := db.ConfirmUser(dbConn, confirmation)
+
+	assert.ErrorIs(t, err, db.ErrConfirmationUsed)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// ResetPassword Tests
+
+func getResetPasswordConfirmation() *db.UserConfirmation {
+	return &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+		Purpose:         db.ConfirmationPurposeResetPassword,
+	}
+}
+
+func expectUseResetPasswordConfirmation(mock sqlmock.Sqlmock, rowsAffected int64) {
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), "abc123", db.ConfirmationPurposeResetPassword, 0).
+		WillReturnResult(sqlmock.NewResult(0, rowsAffected))
+}
+
+func TestResetPassword_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	expectUseResetPasswordConfirmation(mock, 1)
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "password_hash"=$1 WHERE email = $2`)).
+		WithArgs([]byte("newhash"), "alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.ResetPassword(dbConn, getResetPasswordConfirmation(), []byte("newhash"))
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResetPassword_ConfirmationUsed(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	expectUseResetPasswordConfirmation(mock, 0)
+	mock.ExpectRollback()
+
+	err := db.ResetPassword(dbConn, getResetPasswordConfirmation(), []byte("newhash"))
+
+	assert.ErrorIs(t, err, db.ErrConfirmationUsed)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResetPassword_ConfirmationUpdateDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ResetPassword(dbConn, getResetPasswordConfirmation(), []byte("newhash"))
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResetPassword_PasswordUpdateDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	expectUseResetPasswordConfirmation(mock, 1)
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "password_hash"=$1 WHERE email = $2`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ResetPassword(dbConn, getResetPasswordConfirmation(), []byte("newhash"))
+
+	assert.ErrorIs(t, err, errDatabase)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -1429,11 +1527,11 @@ func TestCreateConfirmation_DatabaseError(t *testing.T) {
 func TestGetConfirmation_DatabaseError(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
-		WithArgs("abc123", 1).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 AND purpose = $2 ORDER BY "user_confirmations"."user_email" LIMIT $3`)).
+		WithArgs("abc123", db.ConfirmationPurposeSignUp, 1).
 		WillReturnError(errDatabase)
 
-	confirmation, err := db.GetConfirmation(dbConn, "abc123")
+	confirmation, err := db.GetConfirmation(dbConn, "abc123", db.ConfirmationPurposeSignUp)
 
 	assert.ErrorIs(t, err, errDatabase)
 	assert.Nil(t, confirmation)
@@ -1446,11 +1544,12 @@ func TestConfirmUser_ConfirmationUpdateDatabaseError(t *testing.T) {
 	confirmation := &db.UserConfirmation{
 		UserEmail:       "alex@test.com",
 		OneTimePassword: "abc123",
+		Purpose:         db.ConfirmationPurposeSignUp,
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
-		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword, db.ConfirmationPurposeSignUp, 0).
 		WillReturnError(errDatabase)
 	mock.ExpectRollback()
 
@@ -1466,11 +1565,12 @@ func TestConfirmUser_UserUpdateDatabaseError(t *testing.T) {
 	confirmation := &db.UserConfirmation{
 		UserEmail:       "alex@test.com",
 		OneTimePassword: "abc123",
+		Purpose:         db.ConfirmationPurposeSignUp,
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
-		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2 AND purpose = $3 AND confirmed_time = $4`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword, db.ConfirmationPurposeSignUp, 0).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
 		WithArgs(true, confirmation.UserEmail).
