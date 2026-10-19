@@ -10,6 +10,7 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/database"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -1376,6 +1377,29 @@ func TestUpdateCredential_UpdateDatabaseError(t *testing.T) {
 	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "New Name")
 
 	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredential_DuplicatedName_ReturnsErrDuplicatedKey(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	// unique_violation of PostgreSQL
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET`)).
+		WillReturnError(&pgconn.PgError{Code: "23505"})
+	mock.ExpectRollback()
+
+	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "key 1")
+
+	assert.ErrorIs(t, err, gorm.ErrDuplicatedKey)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -405,7 +406,7 @@ func (s *FidoService) UpdateCredential(c *gin.Context) {
 		return
 	}
 	if err := db.UpdateCredential(dbConn, email, idBytes, req.Name); err != nil {
-		if err == gorm.ErrDuplicatedKey {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			handleBadRequest(c, err, "Name already exists")
 			return
 		}

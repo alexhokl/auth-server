@@ -153,9 +153,19 @@ func UpdateCredential(db *gorm.DB, email string, id []byte, friendlyName string)
 	credential.FriendlyName = friendlyName
 	dbResult := db.Save(credential)
 	if dbResult.Error != nil {
-		return dbResult.Error
+		return translateError(db, dbResult.Error)
 	}
 	return nil
+}
+
+// translateError translates an error of the database driver to a GORM error
+// such as gorm.ErrDuplicatedKey. This is required as connections are not
+// opened with gorm.Config.TranslateError.
+func translateError(db *gorm.DB, err error) error {
+	if translator, ok := db.Dialector.(gorm.ErrorTranslator); ok {
+		return translator.Translate(err)
+	}
+	return err
 }
 
 func CreateRole(db *gorm.DB, role *Role) error {
