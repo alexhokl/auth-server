@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -1020,5 +1021,726 @@ func TestDeleteOIDCClient_Success(t *testing.T) {
 	err := db.DeleteOIDCClient(dbConn, "google")
 
 	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Database error tests
+
+var errDatabase = errors.New("database error")
+
+func TestListUsers_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+		WillReturnError(errDatabase)
+
+	users, err := db.ListUsers(dbConn)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, users)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListUsers_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	users, err := db.ListUsers(dbConn)
+
+	assert.NoError(t, err)
+	assert.Empty(t, users)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUser_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
+		WillReturnError(errDatabase)
+
+	user, err := db.GetUser(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, user)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHasUsers_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "users"`)).
+		WillReturnError(errDatabase)
+
+	hasUsers, err := db.HasUsers(dbConn)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.False(t, hasUsers)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateUser_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	user := &db.User{
+		Email:        "newuser@test.com",
+		PasswordHash: []byte("hash"),
+		DisplayName:  "New User",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateUser(dbConn, user)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateCredential_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credential := &db.UserCredential{
+		ID:           []byte("cred123"),
+		PublicKey:    []byte("pubkey"),
+		UserEmail:    "alex@test.com",
+		FriendlyName: "key 0",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_credentials"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateCredential(dbConn, credential)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentialDescriptors_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(errDatabase)
+
+	descriptors, err := db.GetCredentialDescriptors(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, descriptors)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentialDescriptors_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	descriptors, err := db.GetCredentialDescriptors(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.Nil(t, descriptors)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentials_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(errDatabase)
+
+	credentials, err := db.GetCredentials(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, credentials)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentials_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	credentials, err := db.GetCredentials(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.Nil(t, credentials)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentialNames_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(errDatabase)
+
+	names, err := db.GetCredentialNames(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, names)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetCredentialNames_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	names, err := db.GetCredentialNames(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.Nil(t, names)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteCredential_SearchDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
+		WillReturnError(errDatabase)
+
+	err := db.DeleteCredential(dbConn, "alex@test.com", credID)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteCredential_DeleteDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_credentials" WHERE "user_credentials"."id" = $1`)).
+		WithArgs(credID).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.DeleteCredential(dbConn, "alex@test.com", credID)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredential_SearchDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
+		WillReturnError(errDatabase)
+
+	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "New Name")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredential_UpdateDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	credID := []byte("cred123")
+
+	rows := sqlmock.NewRows([]string{"id", "public_key", "attestation_type", "user_present", "user_verified", "backup_eligible", "backup_state", "aaguid", "sign_count", "clone_warning", "attachment", "user_email", "friendly_name"}).
+		AddRow(credID, []byte("pubkey"), "direct", true, true, false, false, []byte("aaguid"), 0, false, "cross-platform", "alex@test.com", "key 0")
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE user_email = $1 AND id = $2 ORDER BY "user_credentials"."id" LIMIT $3`)).
+		WithArgs("alex@test.com", credID, 1).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.UpdateCredential(dbConn, "alex@test.com", credID, "New Name")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateRole_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "roles"`)).
+		WithArgs("admin").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateRole(dbConn, &db.Role{Name: "admin"})
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHasRole_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "user_roles" WHERE user_email = $1 AND role_name = $2`)).
+		WithArgs("alex@test.com", "admin").
+		WillReturnError(errDatabase)
+
+	hasRole := db.HasRole(dbConn, "alex@test.com", "admin")
+
+	assert.False(t, hasRole)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetClients_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients"`)).
+		WillReturnError(errDatabase)
+
+	clients, err := db.GetClients(dbConn)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, clients)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetClients_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients"`)).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	clients, err := db.GetClients(dbConn)
+
+	assert.NoError(t, err)
+	assert.Nil(t, clients)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "clients" WHERE client_id = $1 ORDER BY "clients"."client_id" LIMIT $2`)).
+		WithArgs("cli1", 1).
+		WillReturnError(errDatabase)
+
+	client, err := db.GetClient(dbConn, "cli1")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, client)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.Client{
+		ClientID:     "newclient",
+		ClientSecret: "newsecret",
+		RedirectURI:  "http://localhost:8080",
+		UserEmail:    "alex@test.com",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "clients"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateClient(dbConn, client)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.Client{
+		ClientID:     "cli1",
+		ClientSecret: "updatedsecret",
+		RedirectURI:  "http://localhost:9090",
+		UserEmail:    "alex@test.com",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "clients" SET`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.UpdateClient(dbConn, client)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestExpireAllConfirmation_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE user_email = $2 AND confirmed_time = $3`)).
+		WithArgs(sqlmock.AnyArg(), "alex@test.com", int64(0)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ExpireAllConfirmation(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateConfirmation_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+		ExpiryTime:      time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_confirmations"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateConfirmation(dbConn, confirmation)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetConfirmation_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_confirmations" WHERE one_time_password = $1 ORDER BY "user_confirmations"."user_email" LIMIT $2`)).
+		WithArgs("abc123", 1).
+		WillReturnError(errDatabase)
+
+	confirmation, err := db.GetConfirmation(dbConn, "abc123")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, confirmation)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConfirmUser_ConfirmationUpdateDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ConfirmUser(dbConn, confirmation)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConfirmUser_UserUpdateDatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	confirmation := &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "abc123",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_confirmations" SET "confirmed_time"=$1 WHERE one_time_password = $2`)).
+		WithArgs(sqlmock.AnyArg(), confirmation.OneTimePassword).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
+		WithArgs(true, confirmation.UserEmail).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ConfirmUser(dbConn, confirmation)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestChangePassword_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	newPasswordHash := []byte("newhash")
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "password_hash"=$1 WHERE email = $2`)).
+		WithArgs(newPasswordHash, "alex@test.com").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.ChangePassword(dbConn, "alex@test.com", newPasswordHash)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateScope_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "scopes"`)).
+		WithArgs("custom_scope").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateScope(dbConn, "custom_scope")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListScopes_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "scopes"`)).
+		WillReturnError(errDatabase)
+
+	scopes, err := db.ListScopes(dbConn)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, scopes)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListScopes_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "scopes"`)).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	scopes, err := db.ListScopes(dbConn)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, scopes)
+	assert.Empty(t, scopes)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteScope_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "scopes" WHERE name = $1`)).
+		WithArgs("custom_scope").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.DeleteScope(dbConn, "custom_scope")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsScopeExist_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "scopes" WHERE name = $1`)).
+		WithArgs("openid").
+		WillReturnError(errDatabase)
+
+	exists, err := db.IsScopeExist(dbConn, "openid")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.False(t, exists)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsScopeInUse_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "client_scopes" WHERE scope_name = $1`)).
+		WithArgs("openid").
+		WillReturnError(errDatabase)
+
+	inUse, err := db.IsScopeInUse(dbConn, "openid")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.False(t, inUse)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateClientScope_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "client_scopes"`)).
+		WithArgs("cli1", "openid").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateClientScope(dbConn, "cli1", "openid")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListClientScopes_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "client_scopes" WHERE client_id = $1`)).
+		WithArgs("cli1").
+		WillReturnError(errDatabase)
+
+	scopes, err := db.ListClientScopes(dbConn, "cli1")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, scopes)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListClientScopes_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "client_scopes" WHERE client_id = $1`)).
+		WithArgs("cli1").
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	scopes, err := db.ListClientScopes(dbConn, "cli1")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, scopes)
+	assert.Empty(t, scopes)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteClientScope_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "client_scopes" WHERE client_id = $1 AND scope_name = $2`)).
+		WithArgs("cli1", "openid").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.DeleteClientScope(dbConn, "cli1", "openid")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListOIDCClients_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
+		WillReturnError(errDatabase)
+
+	clients, err := db.ListOIDCClients(dbConn)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, clients)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListOIDCClients_RecordNotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	clients, err := db.ListOIDCClients(dbConn)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, clients)
+	assert.Empty(t, clients)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetOIDCClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients" WHERE name = $1 ORDER BY "oidc_clients"."name" LIMIT $2`)).
+		WithArgs("google", 1).
+		WillReturnError(errDatabase)
+
+	client, err := db.GetOIDCClient(dbConn, "google")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, client)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCreateOIDCClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.OidcClient{
+		Name:         "google",
+		ClientID:     "google-client-id",
+		ClientSecret: "google-secret",
+		RedirectURI:  "http://localhost/callback",
+		ButtonName:   "Sign in with Google",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients"`)).
+		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.CreateOIDCClient(dbConn, client)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateOIDCClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	client := &db.OidcClient{
+		Name:         "google",
+		ClientID:     "new-google-client-id",
+		ClientSecret: "new-google-secret",
+		RedirectURI:  "http://localhost/newcallback",
+		ButtonName:   "Login with Google",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "oidc_clients" SET`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.UpdateOIDCClient(dbConn, client)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteOIDCClient_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "oidc_clients" WHERE name = $1`)).
+		WithArgs("google").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.DeleteOIDCClient(dbConn, "google")
+
+	assert.ErrorIs(t, err, errDatabase)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

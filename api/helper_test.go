@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
@@ -196,4 +197,135 @@ func TestHandleBadRequest_AbortsWithBadRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, c.Writer.Status())
 	assert.True(t, c.IsAborted())
+}
+
+// Email Sending Tests
+
+const (
+	mailTestAPIKey                 = "test-api-key"
+	mailTestFrom                   = "noreply@test.com"
+	mailTestFromName               = "Auth Server"
+	mailTestConfirmationSubject    = "Confirm your email"
+	mailTestPasswordChangedSubject = "Your password has been changed"
+	mailTestResetPasswordSubject   = "Reset your password"
+	mailTestDomain                 = "test.com"
+)
+
+// mailSetSettings sets the mail settings expected by the email sending
+// functions to the given context.
+func mailSetSettings(c *gin.Context) {
+	c.Set("resend_api_key", mailTestAPIKey)
+	c.Set("mail_from", mailTestFrom)
+	c.Set("mail_from_name", mailTestFromName)
+	c.Set("confirmation_mail_subject", mailTestConfirmationSubject)
+	c.Set("password_changed_mail_subject", mailTestPasswordChangedSubject)
+	c.Set("reset_password_mail_subject", mailTestResetPasswordSubject)
+	c.Set("domain", mailTestDomain)
+}
+
+// mailSettings returns a middleware setting the mail settings.
+func mailSettings() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		mailSetSettings(c)
+		c.Next()
+	}
+}
+
+func mailTestContext() *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	mailSetSettings(c)
+	return c
+}
+
+func TestSendConfirmationEmail_Success_SendsEmail(t *testing.T) {
+	mailServer := useTestMailServer(t, http.StatusOK)
+	c := mailTestContext()
+
+	err := sendConfirmationEmail(c, &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "some-otp",
+	})
+
+	assert.NoError(t, err)
+	requests := mailServer.Requests()
+	if assert.Len(t, requests, 1) {
+		req := requests[0]
+		assert.Equal(t, []string{"alex@test.com"}, req.To)
+		assert.Equal(t, "Auth Server <noreply@test.com>", req.From)
+		assert.Equal(t, mailTestConfirmationSubject, req.Subject)
+		assert.Equal(t, mailTestFrom, req.ReplyTo)
+		assert.Contains(t, req.Html, "https://test.com/confirm/some-otp")
+	}
+}
+
+func TestSendConfirmationEmail_MailServerError_ReturnsError(t *testing.T) {
+	useTestMailServer(t, http.StatusInternalServerError)
+	c := mailTestContext()
+
+	err := sendConfirmationEmail(c, &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "some-otp",
+	})
+
+	assert.Error(t, err)
+}
+
+func TestSendPasswordChangedEmail_Success_SendsEmail(t *testing.T) {
+	mailServer := useTestMailServer(t, http.StatusOK)
+	c := mailTestContext()
+
+	err := sendPasswordChangedEmail(c, "alex@test.com")
+
+	assert.NoError(t, err)
+	requests := mailServer.Requests()
+	if assert.Len(t, requests, 1) {
+		req := requests[0]
+		assert.Equal(t, []string{"alex@test.com"}, req.To)
+		assert.Equal(t, "Auth Server <noreply@test.com>", req.From)
+		assert.Equal(t, mailTestPasswordChangedSubject, req.Subject)
+		assert.Equal(t, mailTestFrom, req.ReplyTo)
+		assert.Equal(t, getPasswordChangedMailContent(), req.Html)
+	}
+}
+
+func TestSendPasswordChangedEmail_MailServerError_ReturnsError(t *testing.T) {
+	useTestMailServer(t, http.StatusInternalServerError)
+	c := mailTestContext()
+
+	err := sendPasswordChangedEmail(c, "alex@test.com")
+
+	assert.Error(t, err)
+}
+
+func TestSendResetPasswordEmail_Success_SendsEmail(t *testing.T) {
+	mailServer := useTestMailServer(t, http.StatusOK)
+	c := mailTestContext()
+
+	err := sendResetPasswordEmail(c, &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "some-otp",
+	})
+
+	assert.NoError(t, err)
+	requests := mailServer.Requests()
+	if assert.Len(t, requests, 1) {
+		req := requests[0]
+		assert.Equal(t, []string{"alex@test.com"}, req.To)
+		assert.Equal(t, "Auth Server <noreply@test.com>", req.From)
+		assert.Equal(t, mailTestResetPasswordSubject, req.Subject)
+		assert.Equal(t, mailTestFrom, req.ReplyTo)
+		assert.Contains(t, req.Html, "https://test.com/confirmresetpassword/some-otp")
+	}
+}
+
+func TestSendResetPasswordEmail_MailServerError_ReturnsError(t *testing.T) {
+	useTestMailServer(t, http.StatusInternalServerError)
+	c := mailTestContext()
+
+	err := sendResetPasswordEmail(c, &db.UserConfirmation{
+		UserEmail:       "alex@test.com",
+		OneTimePassword: "some-otp",
+	})
+
+	assert.Error(t, err)
 }

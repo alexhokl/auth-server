@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -387,4 +388,144 @@ func TestMiddlewareChain_AllMiddlewaresApplied(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// isAdmin and RequiredAdminAccess Tests with a signed in user
+
+func mwExpectHasRole(mock sqlmock.Sqlmock, email string, role string, count int) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "user_roles" WHERE user_email = $1 AND role_name = $2`)).
+		WithArgs(email, role).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(count))
+}
+
+func mwGetAdminRouter(handlers ...gin.HandlerFunc) (*gin.Engine, sqlmock.Sqlmock) {
+	dbConn, mock := getTestDBConnection()
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("db", dbConn)
+		c.Next()
+	})
+	router.GET("/test", handlers...)
+	return router, mock
+}
+
+func mwIsAdminHandler(c *gin.Context) {
+	if isAdmin(c) {
+		c.Status(http.StatusOK)
+		return
+	}
+	c.Status(http.StatusForbidden)
+}
+
+func TestIsAdmin_AuthenticatedWithAdminRole_ReturnsTrue(t *testing.T) {
+	router, mock := mwGetAdminRouter(mwIsAdminHandler)
+	mwExpectHasRole(mock, "admin@test.com", "admin", 1)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("admin@test.com"), req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsAdmin_AuthenticatedWithoutAdminRole_ReturnsFalse(t *testing.T) {
+	router, mock := mwGetAdminRouter(mwIsAdminHandler)
+	mwExpectHasRole(mock, "user@test.com", "admin", 0)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsAdmin_EmailWithoutAuthentication_ReturnsFalse(t *testing.T) {
+	router, mock := mwGetAdminRouter(mwIsAdminHandler)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: "admin@test.com"}, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	// no role is queried for a user not signed in
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRequiredAdminAccess_Admin_ReturnsOK(t *testing.T) {
+	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	mwExpectHasRole(mock, "admin@test.com", "admin", 1)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("admin@test.com"), req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRequiredAdminAccess_NonAdmin_ReturnsForbidden(t *testing.T) {
+	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	mwExpectHasRole(mock, "user@test.com", "admin", 0)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// RequiredAuthenticated Tests with a signed in user
+
+func TestRequiredAuthenticated_Authenticated_ReturnsOK(t *testing.T) {
+	router := gin.New()
+	router.GET("/protected", RequiredAuthenticated(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "/protected", nil)
+	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// WithDatabaseConnection Tests with the middleware itself
+
+// mwFailingDialector is a dialector which fails to initialise.
+type mwFailingDialector struct {
+	gorm.Dialector
+}
+
+func (d mwFailingDialector) Initialize(*gorm.DB) error {
+	return errors.New("unable to connect")
+}
+
+func TestWithDatabaseConnection_ConnectionError_ReturnsInternalServerError(t *testing.T) {
+	mockDB, _, _ := sqlmock.New()
+	dialector := mwFailingDialector{Dialector: database.GetDatabaseDialectorFromConnection(mockDB)}
+
+	handlerCalled := false
+	router := gin.New()
+	router.GET("/test", WithDatabaseConnection(dialector), func(c *gin.Context) {
+		handlerCalled = true
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.False(t, handlerCalled)
+}
+
+func TestIsAdmin_AuthenticatedWithoutDatabaseConnection_ReturnsFalse(t *testing.T) {
+	router := gin.New()
+	router.GET("/test", mwIsAdminHandler)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("admin@test.com"), req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }

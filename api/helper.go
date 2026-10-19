@@ -14,6 +14,10 @@ import (
 
 const queryParamRedirectURL = "redirect_uri"
 
+// newMailClient creates the client used to send emails; tests replace it to
+// send emails to a local server.
+var newMailClient = resend.NewClient
+
 func isMaliciousRequest(c *gin.Context) error {
 	// TODO: Implement
 	return nil
@@ -60,22 +64,22 @@ func sendConfirmationEmail(c *gin.Context, confirmationInfo *db.UserConfirmation
 	confirmationMailSubject := c.GetString("confirmation_mail_subject")
 	domain := c.GetString("domain")
 	confirmationURL := fmt.Sprintf("https://%s/confirm/%s", domain, confirmationInfo.OneTimePassword)
-    client := resend.NewClient(apiKey)
+	client := newMailClient(apiKey)
 
-    params := &resend.SendEmailRequest{
-        From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
-        To:      []string{confirmationInfo.UserEmail},
-        Html:    getConfirmationMailContent(confirmationURL),
-        Subject: confirmationMailSubject,
-        Cc:      []string{},
-        Bcc:     []string{},
-        ReplyTo: mailFrom,
-    }
+	params := &resend.SendEmailRequest{
+		From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
+		To:      []string{confirmationInfo.UserEmail},
+		Html:    getConfirmationMailContent(confirmationURL),
+		Subject: confirmationMailSubject,
+		Cc:      []string{},
+		Bcc:     []string{},
+		ReplyTo: mailFrom,
+	}
 
-    sent, err := client.Emails.Send(params)
-    if err != nil {
+	sent, err := client.Emails.Send(params)
+	if err != nil {
 		return err
-    }
+	}
 	slog.Info(
 		"Confirmation email sent",
 		slog.String("id", sent.Id),
@@ -90,7 +94,7 @@ func sendPasswordChangedEmail(c *gin.Context, email string) error {
 	mailFrom := c.GetString("mail_from")
 	mailFromName := c.GetString("mail_from_name")
 	passwordChangedMailSubject := c.GetString("password_changed_mail_subject")
-	client := resend.NewClient(apiKey)
+	client := newMailClient(apiKey)
 
 	params := &resend.SendEmailRequest{
 		From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
@@ -122,7 +126,7 @@ func sendResetPasswordEmail(c *gin.Context, confirmationInfo *db.UserConfirmatio
 	domain := c.GetString("domain")
 	resetPasswordURL := fmt.Sprintf("https://%s/confirmresetpassword/%s", domain, confirmationInfo.OneTimePassword)
 	resetPasswordMailSubject := c.GetString("reset_password_mail_subject")
-	client := resend.NewClient(apiKey)
+	client := newMailClient(apiKey)
 
 	params := &resend.SendEmailRequest{
 		From:    fmt.Sprintf("%s <%s>", mailFromName, mailFrom),
