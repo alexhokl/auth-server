@@ -407,6 +407,17 @@ func TestLoginChallenge_UserWithoutCredentials_ReturnsInternalServerError(t *tes
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestLoginChallenge_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
+	router, _, mock := getTestRouter()
+	router.POST("/fido/signin/challenge", fidoTestService(t).LoginChallenge)
+
+	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge?redirect_uri=https%3A%2F%2Fevil.com", nil)
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestLoginChallenge_Success_ReturnsOK(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/fido/signin/challenge", fidoTestService(t).LoginChallenge)

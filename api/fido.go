@@ -184,6 +184,11 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
+	if !isSafeRedirectURL(redirectURL) {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
 		handleInternalError(c, nil, "Missing configuration for database")

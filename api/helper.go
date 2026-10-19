@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
@@ -21,6 +23,24 @@ var newMailClient = resend.NewClient
 func isMaliciousRequest(c *gin.Context) error {
 	// TODO: Implement
 	return nil
+}
+
+// isSafeRedirectURL returns true if redirectURL is empty or a path on this
+// server, so that redirecting to it cannot take a user to another site.
+func isSafeRedirectURL(redirectURL string) bool {
+	if redirectURL == "" {
+		return true
+	}
+	if !strings.HasPrefix(redirectURL, "/") ||
+		strings.HasPrefix(redirectURL, "//") ||
+		strings.HasPrefix(redirectURL, "/\\") {
+		return false
+	}
+	u, err := url.Parse(redirectURL)
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "" && u.Host == "" && u.User == nil
 }
 
 func getPasswordHash(password string) []byte {

@@ -161,6 +161,29 @@ func TestIsMaliciousRequest_ReturnsNil(t *testing.T) {
 
 // Error Handling Tests
 
+func TestIsSafeRedirectURL(t *testing.T) {
+	tests := []struct {
+		redirectURL string
+		expected    bool
+	}{
+		{"", true},
+		{"/authenticated", true},
+		{"/authorize?client_id=cli&redirect_uri=https%3A%2F%2Fapp.test.com", true},
+		{"https://evil.com", false},
+		{"http://evil.com/authenticated", false},
+		{"//evil.com", false},
+		{"/\\evil.com", false},
+		{"javascript:alert(1)", false},
+		{"authenticated", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.redirectURL, func(t *testing.T) {
+			assert.Equal(t, test.expected, isSafeRedirectURL(test.redirectURL))
+		})
+	}
+}
+
 func TestHandleUnexpectedError_AbortsWithInternalServerError(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 

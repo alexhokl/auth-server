@@ -151,6 +151,17 @@ func TestSignInPasswordChallenge_NoEmailInSession_ReturnsBadRequest(t *testing.T
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestSignInPasswordChallenge_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/signin/challenge", SignInPasswordChallenge)
+
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: userTestEmail},
+		userSignInChallengeRequest("/signin/challenge?redirect_uri=%2F%2Fevil.com", userTestPassword))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 // SignOut Tests
 
 func TestSignOut_NotAuthenticated_ReturnsNoContent(t *testing.T) {
@@ -776,6 +787,18 @@ func TestSignIn_Success_ReturnsFound(t *testing.T) {
 	}
 	follow := userServe(router, req)
 	assert.Equal(t, userTestEmail, follow.Body.String())
+}
+
+func TestSignIn_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
+	router, _ := userGetTestRouter()
+	router.POST("/signin", SignIn)
+
+	w := userServe(router, userFormRequest(http.MethodPost, "/signin?redirect_uri=https%3A%2F%2Fevil.com", map[string]string{
+		"email": userTestEmail,
+	}))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, w.Result().Cookies())
 }
 
 func TestSignIn_InvalidSessionCookie_ReturnsInternalServerError(t *testing.T) {

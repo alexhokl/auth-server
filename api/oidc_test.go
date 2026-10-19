@@ -115,6 +115,18 @@ func TestRedirectToOIDCEndpoint_InvalidAction_ReturnsNotFound(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRedirectToOIDCEndpoint_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
+	router, _, mock := getTestRouter()
+	router.GET("/:action/:oidc_name/start", RedirectToOIDCEndpoint)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/signin/google/start?redirect_uri=https%3A%2F%2Fevil.com", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestRedirectToOIDCEndpoint_NoDatabase_ReturnsInternalServerError(t *testing.T) {
 	router := gin.New()
 	router.GET("/:action/:oidc_name/start", RedirectToOIDCEndpoint)

@@ -34,6 +34,12 @@ func RedirectToOIDCEndpoint(c *gin.Context) {
 	}
 
 	oidcName := c.Param("oidc_name")
+	redirectURL := c.Query(queryParamRedirectURL)
+
+	if !isSafeRedirectURL(redirectURL) {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
@@ -69,19 +75,19 @@ func RedirectToOIDCEndpoint(c *gin.Context) {
 		oauth2.SetAuthURLParam("code_challenge_method", pkceChallengeMethod),
 	}
 
-	redirectURL := oauthConfig.AuthCodeURL(state, authOpts...)
+	authCodeURL := oauthConfig.AuthCodeURL(state, authOpts...)
 
-	if err := setOIDCSession(c, oidcName, state, pkceChallengeMethod, codeChallenge, codeVerifier, c.Query("redirect_uri"), c.Param("action") == "signup"); err != nil {
+	if err := setOIDCSession(c, oidcName, state, pkceChallengeMethod, codeChallenge, codeVerifier, redirectURL, c.Param("action") == "signup"); err != nil {
 		handleInternalError(c, err, "Unable to save OIDC session")
 		return
 	}
 
 	slog.Info(
 		"Redirecting to OIDC endpoint",
-		slog.String("endpoint", redirectURL),
+		slog.String("endpoint", authCodeURL),
 	)
 
-	c.Redirect(http.StatusFound, redirectURL)
+	c.Redirect(http.StatusFound, authCodeURL)
 }
 
 func OIDCCallback(c *gin.Context) {

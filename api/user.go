@@ -115,6 +115,11 @@ func SignIn(c *gin.Context) {
 
 	redirectURL := c.Query(queryParamRedirectURL)
 
+	if !isSafeRedirectURL(redirectURL) {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
 	if err := isMaliciousRequest(c); err != nil {
 		c.AbortWithStatus(http.StatusTooManyRequests)
 		return
@@ -155,6 +160,11 @@ func SignInPasswordChallenge(c *gin.Context) {
 	}
 
 	redirectURL := c.Query(queryParamRedirectURL)
+
+	if !isSafeRedirectURL(redirectURL) {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
