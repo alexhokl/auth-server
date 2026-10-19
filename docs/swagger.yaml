@@ -97,6 +97,27 @@ definitions:
     - redirect_uri
     - user_email
     type: object
+  api.ClientResponse:
+    properties:
+      client_id:
+        type: string
+      redirect_uri:
+        type: string
+      user_email:
+        type: string
+    type: object
+  api.ClientUpdateRequest:
+    properties:
+      client_secret:
+        example: P@ssw0rd
+        type: string
+      redirect_uri:
+        example: http://localhost:8080/callback
+        type: string
+      user_email:
+        example: alex@test.com
+        type: string
+    type: object
   api.CollectedClientData:
     properties:
       challenge:
@@ -300,16 +321,6 @@ paths:
       summary: Lists clients
       tags:
       - clients
-    patch:
-      consumes:
-      - application/json
-      description: Patches a OAuth client (not implemented yet)
-      produces:
-      - application/json
-      responses: {}
-      summary: Patches a client
-      tags:
-      - clients
     post:
       consumes:
       - application/json
@@ -325,6 +336,39 @@ paths:
       - application/json
       responses: {}
       summary: Adds a client
+      tags:
+      - clients
+  /clients/{client_id}:
+    patch:
+      consumes:
+      - application/json
+      description: Patches a OAuth client; only the fields provided are updated
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: Client details to be updated
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.ClientUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ClientResponse'
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "500":
+          description: Internal Server Error
+      summary: Patches a client
       tags:
       - clients
   /fido/register:

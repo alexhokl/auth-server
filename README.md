@@ -107,9 +107,6 @@ It is based on the following libraries.
   name
 - User administration is limited to listing (`GET /users`); there is no
   endpoint to update, delete or change roles of a user
-- The Swagger description of `PATCH /clients/:client_id` still says "not
-  implemented yet" and its route is documented as `/clients/`, although the
-  endpoint is implemented
 - `Dockerfile` is out of date: it uses a Go 1.21 base image (`go.mod` requires
   1.26), does not build with tag `nomsgpack`, exposes port `3000` (the server
   defaults to `8080`) and generates documentation with go-swagger instead of

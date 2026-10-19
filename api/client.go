@@ -81,11 +81,17 @@ func CreateClient(c *gin.Context) {
 // UpdateClient patches a client
 //
 //	@Summary		Patches a client
-//	@Description	Patches a OAuth client (not implemented yet)
+//	@Description	Patches a OAuth client; only the fields provided are updated
 //	@Tags			clients
 //	@Accept			json
 //	@Produce		json
-//	@Router			/clients/ [patch]
+//	@Param			client_id	path		string					true	"Client ID"
+//	@Param			body		body		api.ClientUpdateRequest	true	"Client details to be updated"
+//	@Success		200			{object}	api.ClientResponse
+//	@Failure		400
+//	@Failure		404
+//	@Failure		500
+//	@Router			/clients/{client_id} [patch]
 func UpdateClient(c *gin.Context) {
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {

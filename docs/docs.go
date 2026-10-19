@@ -124,9 +124,11 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {}
-            },
+            }
+        },
+        "/clients/{client_id}": {
             "patch": {
-                "description": "Patches a OAuth client (not implemented yet)",
+                "description": "Patches a OAuth client; only the fields provided are updated",
                 "consumes": [
                     "application/json"
                 ],
@@ -137,7 +139,41 @@ const docTemplate = `{
                     "clients"
                 ],
                 "summary": "Patches a client",
-                "responses": {}
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Client details to be updated",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ClientUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
             }
         },
         "/fido/register": {
@@ -494,6 +530,37 @@ const docTemplate = `{
                     "type": "string",
                     "example": "cli"
                 },
+                "client_secret": {
+                    "type": "string",
+                    "example": "P@ssw0rd"
+                },
+                "redirect_uri": {
+                    "type": "string",
+                    "example": "http://localhost:8080/callback"
+                },
+                "user_email": {
+                    "type": "string",
+                    "example": "alex@test.com"
+                }
+            }
+        },
+        "api.ClientResponse": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "redirect_uri": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ClientUpdateRequest": {
+            "type": "object",
+            "properties": {
                 "client_secret": {
                     "type": "string",
                     "example": "P@ssw0rd"
