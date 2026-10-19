@@ -87,10 +87,10 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 40.7% |
-| `db` | 68.4% |
+| `api` | 91.9% |
+| `db` | 93.7% |
 | `jwthelper` | 95.8% |
-| `server` | 96.1% |
+| `server` | 96.2% |
 | `store` | 93.8% |
 
 ### Not yet implemented / known gaps
