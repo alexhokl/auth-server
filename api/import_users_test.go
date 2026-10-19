@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func writeTestImportFile(t *testing.T, content string) string {
@@ -64,10 +63,9 @@ func TestGetSeedUsers_PasswordIsHashed(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, users, 1)
 	assert.NotEqual(t, "P@ssw0rd", string(users[0].PasswordHash))
-	assert.NoError(
-		t,
-		bcrypt.CompareHashAndPassword(users[0].PasswordHash, []byte("P@ssw0rd")),
-	)
+	matches, _, err := verifyPassword(users[0].PasswordHash, "P@ssw0rd")
+	assert.NoError(t, err)
+	assert.True(t, matches)
 }
 
 func TestGetSeedUsers_RolesAreNotDuplicated(t *testing.T) {

@@ -165,11 +165,15 @@ type ScopeCreationRequest struct {
 	Name string `json:"name" binding:"required" example:"read"`
 }
 
-func (req *UserSignUpRequest) ToUser() *db.User {
+func (req *UserSignUpRequest) ToUser() (*db.User, error) {
+	hash, err := hashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
 	return &db.User{
 		Email:        req.Email,
-		PasswordHash: getPasswordHash(req.Password),
-	}
+		PasswordHash: hash,
+	}, nil
 }
 
 func ToClientResponse(c db.Client) *ClientResponse {

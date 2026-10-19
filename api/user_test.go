@@ -19,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -554,12 +553,6 @@ func TestUserResponse_JSONSerialization(t *testing.T) {
 	assert.Equal(t, user.IsEnabled, decoded.IsEnabled)
 }
 
-// Helper function to create password hash for testing
-func createTestPasswordHash(password string) []byte {
-	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return hash
-}
-
 // Test helper: create valid form data
 func createFormData(values map[string]string) *bytes.Buffer {
 	form := url.Values{}
@@ -574,11 +567,11 @@ func createFormData(values map[string]string) *bytes.Buffer {
 const userTestEmail = "alex@test.com"
 const userTestPassword = "P@ssw0rd"
 
-// userTestPasswordHash uses the minimum cost so that the comparison of
-// passwords is fast. Slow comparisons widen the window for a data race in the
-// in-memory session store of go-session between its garbage collection and
-// session updates, which is reported by the race detector.
-var userTestPasswordHash, _ = bcrypt.GenerateFromPassword([]byte(userTestPassword), bcrypt.MinCost)
+// userTestPasswordHash is hashed with the lowered cost of Argon2id so that the
+// comparison of passwords is fast. Slow comparisons widen the window for a data
+// race in the in-memory session store of go-session between its garbage
+// collection and session updates, which is reported by the race detector.
+var userTestPasswordHash = hashTestPassword(userTestPassword)
 
 var userErrDatabase = errors.New("database failure")
 
@@ -905,6 +898,52 @@ func TestSignInPasswordChallenge_WrongPassword_ReturnsUnauthorized(t *testing.T)
 
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: userTestEmail},
 		userSignInChallengeRequest("/signin/challenge", "wrong password"))
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSignInPasswordChallenge_OutdatedParameters_HashIsUpgraded(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/signin/challenge", SignInPasswordChallenge)
+	argon2idMemoryKiB = 16
+	outdatedHash, err := hashPassword(userTestPassword)
+	lowerArgon2idCost()
+	assert.NoError(t, err)
+	userExpectGetUser(mock, userTestEmail, outdatedHash, true)
+	userExpectChangePassword(mock, userTestEmail, nil)
+
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: userTestEmail},
+		userSignInChallengeRequest("/signin/challenge", userTestPassword))
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSignInPasswordChallenge_RehashFailure_StillSignsIn(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/signin/challenge", SignInPasswordChallenge)
+	argon2idMemoryKiB = 16
+	outdatedHash, err := hashPassword(userTestPassword)
+	lowerArgon2idCost()
+	assert.NoError(t, err)
+	userExpectGetUser(mock, userTestEmail, outdatedHash, true)
+	userExpectChangePassword(mock, userTestEmail, userErrDatabase)
+
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: userTestEmail},
+		userSignInChallengeRequest("/signin/challenge", userTestPassword))
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSignInPasswordChallenge_UnsupportedHash_ReturnsUnauthorized(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/signin/challenge", SignInPasswordChallenge)
+	userExpectGetUser(mock, userTestEmail, []byte("$2a$04$unsupported"), true)
+
+	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: userTestEmail},
+		userSignInChallengeRequest("/signin/challenge", userTestPassword))
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())

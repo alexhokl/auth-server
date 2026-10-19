@@ -36,8 +36,10 @@ It is based on the following libraries.
 
 ### Authentication
 
-- Email and password sign-in with `bcrypt` password hashes, as a two-step flow
-  (`POST /signin` followed by `POST /signin/challenge`)
+- Email and password sign-in with Argon2id password hashes (64 MiB, 2 passes,
+  1 lane, PHC string format), as a two-step flow (`POST /signin` followed by
+  `POST /signin/challenge`); a hash with outdated parameters is replaced on the
+  next successful sign-in
 - WebAuthn (FIDO2) registration and passwordless sign-in, including credential
   management and clone detection; see
   [Current FIDO2/WebAuthn Support](#current-fido2webauthn-support)
@@ -87,7 +89,7 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 91.9% |
+| `api` | 91.1% |
 | `db` | 93.7% |
 | `jwthelper` | 95.8% |
 | `server` | 96.2% |
@@ -360,6 +362,9 @@ JavaScript implementation in assets/ handles:
   Client Authentication and Authorization
   Grants](https://www.rfc-editor.org/rfc/rfc7522)
 - [RFC 7033 WebFinger](https://www.rfc-editor.org/rfc/rfc7033)
-- [bcrypt](https://en.wikipedia.org/wiki/Bcrypt)
+- [Argon2id](https://www.rfc-editor.org/rfc/rfc9106)
+- [Post-Quantum Cryptographic Right
+  Answers](https://words.filippo.io/right-answers/) by Filippo Valsorda, the
+  basis for the choice of Argon2id over bcrypt
 - [swaggo/swag](https://github.com/swaggo/swag)
 - [swaggo/gin-swagger](https://github.com/swaggo/gin-swagger)

@@ -214,9 +214,15 @@ func OIDCCallback(c *gin.Context) {
 			return
 		}
 
+		passwordHash, err := hashPassword(password)
+		if err != nil {
+			handleInternalError(c, err, "Unable to hash password")
+			return
+		}
+
 		user = &db.User{
 			Email:        email,
-			PasswordHash: getPasswordHash(password),
+			PasswordHash: passwordHash,
 			IsEnabled:    true,
 		}
 		if err := db.CreateUser(dbConn, user); err != nil {

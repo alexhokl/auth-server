@@ -11,7 +11,6 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
 	"github.com/resendlabs/resend-go"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const queryParamRedirectURL = "redirect_uri"
@@ -41,11 +40,6 @@ func isSafeRedirectURL(redirectURL string) bool {
 		return false
 	}
 	return u.Scheme == "" && u.Host == "" && u.User == nil
-}
-
-func getPasswordHash(password string) []byte {
-	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return bytes
 }
 
 func handleUnexpectedError(c *gin.Context, err error) {

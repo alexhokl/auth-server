@@ -13,7 +13,6 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // SignUp creates a new user
@@ -40,7 +39,11 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	user := req.ToUser()
+	user, err := req.ToUser()
+	if err != nil {
+		handleInternalError(c, err, "Unable to hash password")
+		return
+	}
 	if err := db.CreateUser(dbConn, user); err != nil {
 		handleInternalError(c, err, "Unable to create user")
 		return
@@ -205,10 +208,19 @@ func SignInPasswordChallenge(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(formValues.Password)); err != nil {
+	matches, needsRehash, err := verifyPassword(user.PasswordHash, formValues.Password)
+	if err != nil {
+		logger.Warn("Unable to verify password", slog.String("error", err.Error()))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		return
+	}
+	if !matches {
 		logger.Warn("Invalid password")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
+	}
+	if needsRehash {
+		upgradePasswordHash(dbConn, user.Email, formValues.Password)
 	}
 
 	if err := setAuthenticationToSession(c, true); err != nil {
@@ -378,12 +390,19 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+	matches, _, err := verifyPassword(user.PasswordHash, req.OldPassword)
+	if err != nil || !matches {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid old password"})
 		return
 	}
 
-	if err := db.ChangePassword(dbConn, user.Email, getPasswordHash(req.NewPassword)); err != nil {
+	newPasswordHash, err := hashPassword(req.NewPassword)
+	if err != nil {
+		handleInternalError(c, err, "Unable to hash password")
+		return
+	}
+
+	if err := db.ChangePassword(dbConn, user.Email, newPasswordHash); err != nil {
 		handleInternalError(c, err, "Unable to change password")
 		return
 	}
@@ -500,7 +519,13 @@ func NewPassword(c *gin.Context) {
 		return
 	}
 
-	if err := db.ResetPassword(dbConn, confirmationInfo, getPasswordHash(req.NewPassword)); err != nil {
+	newPasswordHash, err := hashPassword(req.NewPassword)
+	if err != nil {
+		handleInternalError(c, err, "Unable to hash password")
+		return
+	}
+
+	if err := db.ResetPassword(dbConn, confirmationInfo, newPasswordHash); err != nil {
 		if errors.Is(err, db.ErrConfirmationUsed) {
 			c.AbortWithStatus(http.StatusGone)
 			return

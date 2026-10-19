@@ -20,10 +20,14 @@ func GetSeedUsers(pathToImportFile string) ([]db.User, []db.Role, error) {
 	var seedusers []db.User
 	var seedRoleNames []string
 	for _, u := range importUsers {
+		hash, err := hashPassword(u.Password)
+		if err != nil {
+			return nil, nil, err
+		}
 		dbUser := db.User{
 			Email:        u.Email,
 			DisplayName:  u.DisplayName,
-			PasswordHash: getPasswordHash(u.Password),
+			PasswordHash: hash,
 			Roles:        []db.Role{},
 			IsEnabled:    true,
 		}

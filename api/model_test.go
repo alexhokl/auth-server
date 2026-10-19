@@ -5,7 +5,6 @@ import (
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // ToUser conversion tests
@@ -16,13 +15,14 @@ func TestUserSignUpRequest_ToUser(t *testing.T) {
 		Password: "SecureP@ssw0rd",
 	}
 
-	user := req.ToUser()
+	user, err := req.ToUser()
 
+	assert.NoError(t, err)
 	assert.Equal(t, "alex@test.com", user.Email)
 	assert.NotEmpty(t, user.PasswordHash)
-	// Verify password hash is valid bcrypt
-	err := bcrypt.CompareHashAndPassword(user.PasswordHash, []byte("SecureP@ssw0rd"))
+	matches, _, err := verifyPassword(user.PasswordHash, "SecureP@ssw0rd")
 	assert.NoError(t, err)
+	assert.True(t, matches)
 }
 
 func TestUserSignUpRequest_ToUser_EmptyPassword(t *testing.T) {
@@ -31,10 +31,11 @@ func TestUserSignUpRequest_ToUser_EmptyPassword(t *testing.T) {
 		Password: "",
 	}
 
-	user := req.ToUser()
+	user, err := req.ToUser()
 
+	assert.NoError(t, err)
 	assert.Equal(t, "alex@test.com", user.Email)
-	assert.NotEmpty(t, user.PasswordHash) // bcrypt still generates hash for empty string
+	assert.NotEmpty(t, user.PasswordHash) // a hash is still generated for empty string
 }
 
 func TestUserSignUpRequest_ToUser_SpecialCharactersInEmail(t *testing.T) {
@@ -43,8 +44,9 @@ func TestUserSignUpRequest_ToUser_SpecialCharactersInEmail(t *testing.T) {
 		Password: "password",
 	}
 
-	user := req.ToUser()
+	user, err := req.ToUser()
 
+	assert.NoError(t, err)
 	assert.Equal(t, "user+tag@sub.domain.test.com", user.Email)
 }
 

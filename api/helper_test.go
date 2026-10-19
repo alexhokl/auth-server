@@ -10,53 +10,7 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 )
-
-// Password Hash Tests
-
-func TestGetPasswordHash_ReturnsValidBcryptHash(t *testing.T) {
-	password := "testPassword123"
-
-	hash := getPasswordHash(password)
-
-	assert.NotEmpty(t, hash)
-	// Verify the hash can be compared with the original password
-	err := bcrypt.CompareHashAndPassword(hash, []byte(password))
-	assert.NoError(t, err)
-}
-
-func TestGetPasswordHash_DifferentPasswordsProduceDifferentHashes(t *testing.T) {
-	password1 := "password1"
-	password2 := "password2"
-
-	hash1 := getPasswordHash(password1)
-	hash2 := getPasswordHash(password2)
-
-	assert.NotEqual(t, hash1, hash2)
-}
-
-func TestGetPasswordHash_SamePasswordProducesDifferentHashes(t *testing.T) {
-	// bcrypt includes a random salt, so same password should produce different hashes
-	password := "samePassword"
-
-	hash1 := getPasswordHash(password)
-	hash2 := getPasswordHash(password)
-
-	// Hashes should be different due to random salt
-	assert.NotEqual(t, string(hash1), string(hash2))
-	// But both should validate against the original password
-	assert.NoError(t, bcrypt.CompareHashAndPassword(hash1, []byte(password)))
-	assert.NoError(t, bcrypt.CompareHashAndPassword(hash2, []byte(password)))
-}
-
-func TestGetPasswordHash_EmptyPassword(t *testing.T) {
-	hash := getPasswordHash("")
-
-	assert.NotEmpty(t, hash)
-	err := bcrypt.CompareHashAndPassword(hash, []byte(""))
-	assert.NoError(t, err)
-}
 
 // Unique Credential Name Tests
 
