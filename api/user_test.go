@@ -1467,6 +1467,39 @@ func TestSignInUI_OIDCEnabledWithClients_ReturnsOK(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestSignInUI_OIDCEnabledUnsupportedProvider_IsHidden(t *testing.T) {
+	router, mock := userGetTestRouter()
+	userSetSignInTemplate(router)
+	router.GET("/signin", WithOIDC(true), SignInUI)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
+		WillReturnRows(sqlmock.NewRows([]string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}).
+			AddRow("facebook", "client-id", "secret", "https://test.com/callback", "Sign in with Facebook").
+			AddRow("github", "client-id", "secret", "https://test.com/callback", "Sign in with GitHub"))
+
+	req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "true|github,Sign in with GitHub,"+OIDC_START_ENDPOINT, w.Body.String())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSignInUI_OIDCEnabledOnlyUnsupportedProviders_HasNoClients(t *testing.T) {
+	router, mock := userGetTestRouter()
+	userSetSignInTemplate(router)
+	router.GET("/signin", WithOIDC(true), SignInUI)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
+		WillReturnRows(sqlmock.NewRows([]string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}).
+			AddRow("facebook", "client-id", "secret", "https://test.com/callback", "Sign in with Facebook"))
+
+	req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "false", w.Body.String())
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSignInUI_OIDCEnabledListError_ReturnsOK(t *testing.T) {
 	router, mock := userGetTestRouter()
 	userSetSignInTemplate(router)

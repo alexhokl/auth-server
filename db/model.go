@@ -82,4 +82,10 @@ type OidcClient struct {
 	ClientSecret string `gorm:"not null"`
 	RedirectURI  string `gorm:"not null"`
 	ButtonName   string `gorm:"not null"`
+	// Issuer is the issuer URL of an Okta or a Microsoft client
+	Issuer string `gorm:"not null;default:''"`
+	// TeamID and KeyID identify the private key of an Apple client, which is
+	// stored as its client secret
+	TeamID string `gorm:"not null;default:''"`
+	KeyID  string `gorm:"not null;default:''"`
 }

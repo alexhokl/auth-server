@@ -16,6 +16,7 @@ type oidcSession struct {
 	PKCECodeChallengeMethod string `json:"pkce_code_challenge_method"`
 	PKCECodeChallenge       string `json:"pkce_code_challenge"`
 	PKCECodeVerifier        string `json:"pkce_code_verifier"`
+	Nonce                   string `json:"nonce,omitempty"`
 	RedirectURI             string `json:"redirect_uri"`
 	IsSignUp                bool   `json:"is_sign_up"`
 }
@@ -122,15 +123,7 @@ func getWebAuthnSession(c *gin.Context) (*webauthn.SessionData, error) {
 	return &session, nil
 }
 
-func setOIDCSession(c *gin.Context, _ string, state string, pkceCodeChallengeMethod string, pkceCodeChallenge string, pkceCodeVerifier string, redirectURI string, isSignUp bool) error {
-	oidcSession := &oidcSession{
-		State:                   state,
-		PKCECodeChallengeMethod: pkceCodeChallengeMethod,
-		PKCECodeChallenge:       pkceCodeChallenge,
-		PKCECodeVerifier:        pkceCodeVerifier,
-		RedirectURI:             redirectURI,
-		IsSignUp:                isSignUp,
-	}
+func setOIDCSession(c *gin.Context, oidcSession *oidcSession) error {
 	json, err := jsonhelper.GetJSONString(oidcSession)
 	if err != nil {
 		return err
@@ -140,29 +133,21 @@ func setOIDCSession(c *gin.Context, _ string, state string, pkceCodeChallengeMet
 	})
 }
 
-func getOIDCSession(c *gin.Context, _ string) (state string, pkceCodeChallengeMethod string, pkceCodeChallenge string, pkceCodeVerifier string, redirectURI string, isSignUp bool, err error) {
+func getOIDCSession(c *gin.Context) (*oidcSession, error) {
 	oidcSessionValue, ok := getValueFromSession(c, sessionOIDCKey)
 	if !ok {
-		err = fmt.Errorf("session [%s] is not set", sessionOIDCKey)
-		return
+		return nil, fmt.Errorf("session [%s] is not set", sessionOIDCKey)
 	}
 	sessionValueString, ok := oidcSessionValue.(string)
 	if !ok {
-		err = fmt.Errorf("session [%s] is not a string", sessionOIDCKey)
-		return
+		return nil, fmt.Errorf("session [%s] is not a string", sessionOIDCKey)
 	}
 	var session oidcSession
 	jsonhelper.ParseJSONString(sessionValueString, &session)
-	state = session.State
-	pkceCodeChallengeMethod = session.PKCECodeChallengeMethod
-	pkceCodeChallenge = session.PKCECodeChallenge
-	pkceCodeVerifier = session.PKCECodeVerifier
-	redirectURI = session.RedirectURI
-	isSignUp = session.IsSignUp
-	return
+	return &session, nil
 }
 
-func deleteOIDCSession(c *gin.Context, _ string) error {
+func deleteOIDCSession(c *gin.Context) error {
 	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
 	if err != nil {
 		return err

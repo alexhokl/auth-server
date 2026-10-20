@@ -50,8 +50,10 @@ It is based on the following libraries.
 - WebAuthn (FIDO2) registration and passwordless sign-in, including credential
   management and clone detection; see
   [Current FIDO2/WebAuthn Support](#current-fido2webauthn-support)
-- Sign-in through an external OIDC provider (currently Google), enabled with
-  `AUTH_ENABLE_OIDC`
+- Sign-up and sign-in through Google, GitHub, Apple, Okta or Microsoft,
+  enabled with `AUTH_ENABLE_OIDC`; an account is matched by an email address
+  which the provider has verified (see
+  [Configuring external sign-in](#configuring-external-sign-in))
 - Server-side sessions held in Redis under a configurable cookie name
 
 ### User and account management
@@ -96,16 +98,14 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 91.5% |
+| `api` | 91.9% |
 | `db` | 93.7% |
-| `jwthelper` | 96.2% |
-| `server` | 96.3% |
+| `jwthelper` | 97.7% |
+| `server` | 99.1% |
 | `store` | 93.8% |
 
 ### Not yet implemented / known gaps
 
-- Sign-in through an external OIDC provider supports Google only; Facebook and
-  Microsoft are stubbed and return "not implemented"
 - Detection of malicious requests (`isMaliciousRequest` in `api/helper.go`) is
   a no-op
 - The OAuth response error handler (`HandleErrorResponse` in
@@ -143,6 +143,47 @@ file.
 
 Note that setting of role `admin` is important to allow the user to act as an
 administrator to configure other aspects (such as OAuth clients) of this server.
+
+## Configuring external sign-in
+
+External sign-in is enabled with `AUTH_ENABLE_OIDC=true`. An administrator
+configures each provider with `POST /oidcclients` (`PUT /oidcclients/:name` to
+update it), where `name` is one of `google`, `github`, `apple`, `okta` and
+`microsoft`; at most one client can be configured per provider. Register the
+redirect URI `https://<AUTH_DOMAIN>/signin/<name>/callback` with the provider
+and set the same value as `redirect_uri`.
+
+```json
+{
+  "name": "okta",
+  "client_id": "<client ID>",
+  "client_secret": "<client secret>",
+  "redirect_uri": "https://auth.example.com/signin/okta/callback",
+  "button_name": "Sign in with Okta",
+  "issuer": "https://acme.okta.com/oauth2/default"
+}
+```
+
+A user signs up or signs in with the email address the provider reports, and
+only if the provider has verified it. PKCE is used with all the providers but
+Apple, and a nonce is checked in the ID token of all the providers but GitHub
+(which does not issue one).
+
+| Provider | Settings | Notes |
+|----------|----------|-------|
+| `google` | `client_id`, `client_secret` | Scopes `openid profile email`; the ID token must have `email_verified` |
+| `github` | `client_id`, `client_secret` of an OAuth app | Scopes `read:user user:email`; the primary email must be verified on GitHub |
+| `apple` | `client_id` (the Services ID), `team_id`, `key_id`, and the content of the `.p8` private key as `client_secret` | Scopes `name email`; the callback is a form post (`response_mode=form_post`), so the redirect URI must be `https`; a client secret is signed with the private key on every token request |
+| `okta` | `client_id`, `client_secret`, `issuer` | `issuer` is the authorization server, such as `https://acme.okta.com/oauth2/default` or `https://acme.okta.com`; endpoints are discovered from it |
+| `microsoft` | `client_id`, `client_secret`, `issuer` | `issuer` is `https://login.microsoftonline.com/<tenant>/v2.0`, where `<tenant>` is `common`, `organizations`, `consumers` or a tenant ID |
+
+As the email of an organisational Microsoft account can be set by a tenant
+administrator, it is trusted only if Microsoft has verified the owner of its
+domain. Add optional claims `email` and `xms_edov` to the ID token in the app
+registration; otherwise only personal Microsoft accounts can sign in.
+
+Facebook is no longer supported; an existing client of it is not shown on the
+sign-in page and can be removed with `DELETE /oidcclients/facebook`.
 
 ## Development setup
 
@@ -268,8 +309,8 @@ To test WebAuthn (FIDO2) registration
 To test login via OIDC provider
 
 1. Ensure environment variable `AUTH_ENABLE_OIDC` is set to `true`.
-2. Setup a OIDC provider via `POST /oidcclients` (currently only `google` is
-   supported).
+2. Setup a provider via `POST /oidcclients` (see
+   [Configuring external sign-in](#configuring-external-sign-in)).
 
 ### Webauthn (FIDO2)
 

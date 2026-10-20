@@ -291,6 +291,10 @@ func SignInUI(c *gin.Context) {
 
 	var viewModels []OIDCClientViewModel
 	for _, c := range oidcClients {
+		// a client of a provider which is no longer supported cannot sign in
+		if !isSupportedExternalProvider(c.Name) {
+			continue
+		}
 		viewModels = append(viewModels, OIDCClientViewModel{
 			Name:          c.Name,
 			ButtonName:    c.ButtonName,

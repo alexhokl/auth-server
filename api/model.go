@@ -75,14 +75,23 @@ type OIDCClientResponse struct {
 	ClientID    string `json:"client_id"`
 	RedirectURI string `json:"redirect_uri"`
 	ButtonName  string `json:"button_name"`
+	Issuer      string `json:"issuer,omitempty"`
+	TeamID      string `json:"team_id,omitempty"`
+	KeyID       string `json:"key_id,omitempty"`
 }
 
 type OIDCClientCreateRequest struct {
-	Name         string `json:"name" binding:"required" example:"My OIDC client"`
+	Name         string `json:"name" binding:"required" example:"google" enums:"google,github,apple,okta,microsoft"`
 	ClientID     string `json:"client_id" binding:"required" example:"cli"`
 	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
 	RedirectURI  string `json:"redirect_uri" binding:"required" example:"http://localhost:8080/callback"`
 	ButtonName   string `json:"button_name" binding:"required" example:"Login with My OIDC client"`
+	// Issuer is required for Okta and Microsoft
+	Issuer string `json:"issuer" example:"https://login.microsoftonline.com/common/v2.0"`
+	// TeamID and KeyID are required for Apple, whose client secret is the
+	// PEM encoded private key (.p8 file)
+	TeamID string `json:"team_id" example:"ABCDE12345"`
+	KeyID  string `json:"key_id" example:"FGHIJ67890"`
 }
 
 type OIDCClientUpdateRequest struct {
@@ -90,6 +99,9 @@ type OIDCClientUpdateRequest struct {
 	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
 	RedirectURI  string `json:"redirect_uri" binding:"required" example:"http://localhost:8080/callback"`
 	ButtonName   string `json:"button_name" binding:"required" example:"Login with My OIDC client"`
+	Issuer       string `json:"issuer" example:"https://login.microsoftonline.com/common/v2.0"`
+	TeamID       string `json:"team_id" example:"ABCDE12345"`
+	KeyID        string `json:"key_id" example:"FGHIJ67890"`
 }
 
 type OpenIDConfiguration struct {

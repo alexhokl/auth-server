@@ -93,6 +93,12 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 			api.WithDatabaseConnection(dialector),
 			api.OIDCCallback,
 		)
+		// Apple posts the callback as a form (response_mode=form_post)
+		r.POST(
+			fmt.Sprintf("/signin/:oidc_name/%s", api.OIDC_CALLBACK_ENDPOINT),
+			api.WithDatabaseConnection(dialector),
+			api.OIDCCallback,
+		)
 	}
 	r.POST(
 		"/signup",

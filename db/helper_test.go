@@ -1057,16 +1057,17 @@ func TestCreateOIDCClient_Success(t *testing.T) {
 	dbConn, mock := getDBConnection()
 
 	client := &db.OidcClient{
-		Name:         "google",
-		ClientID:     "google-client-id",
-		ClientSecret: "google-secret",
+		Name:         "okta",
+		ClientID:     "okta-client-id",
+		ClientSecret: "okta-secret",
 		RedirectURI:  "http://localhost/callback",
-		ButtonName:   "Sign in with Google",
+		ButtonName:   "Sign in with Okta",
+		Issuer:       "https://acme.okta.com/oauth2/default",
 	}
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients"`)).
-		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName).
+		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName, client.Issuer, client.TeamID, client.KeyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -1825,7 +1826,7 @@ func TestCreateOIDCClient_DatabaseError(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients"`)).
-		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName).
+		WithArgs(client.Name, client.ClientID, client.ClientSecret, client.RedirectURI, client.ButtonName, client.Issuer, client.TeamID, client.KeyID).
 		WillReturnError(errDatabase)
 	mock.ExpectRollback()
 

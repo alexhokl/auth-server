@@ -168,32 +168,27 @@ func TestGetWebAuthnSession_NotSet(t *testing.T) {
 
 func TestSetAndGetOIDCSession(t *testing.T) {
 	runInSession(t, func(c *gin.Context) {
-		assert.NoError(t, setOIDCSession(
-			c,
-			"google",
-			"some-state",
-			"S256",
-			"some-challenge",
-			"some-verifier",
-			"https://auth.example.com/callback",
-			true,
-		))
+		expected := &oidcSession{
+			State:                   "some-state",
+			PKCECodeChallengeMethod: "S256",
+			PKCECodeChallenge:       "some-challenge",
+			PKCECodeVerifier:        "some-verifier",
+			Nonce:                   "some-nonce",
+			RedirectURI:             "https://auth.example.com/callback",
+			IsSignUp:                true,
+		}
+		assert.NoError(t, setOIDCSession(c, expected))
 
-		state, method, challenge, verifier, redirectURI, isSignUp, err := getOIDCSession(c, "google")
+		stored, err := getOIDCSession(c)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "some-state", state)
-		assert.Equal(t, "S256", method)
-		assert.Equal(t, "some-challenge", challenge)
-		assert.Equal(t, "some-verifier", verifier)
-		assert.Equal(t, "https://auth.example.com/callback", redirectURI)
-		assert.True(t, isSignUp)
+		assert.Equal(t, expected, stored)
 	})
 }
 
 func TestGetOIDCSession_NotSet(t *testing.T) {
 	runInSession(t, func(c *gin.Context) {
-		_, _, _, _, _, _, err := getOIDCSession(c, "google")
+		_, err := getOIDCSession(c)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "is not set")
@@ -219,21 +214,21 @@ func mwRunWithInvalidSessionCookie(t *testing.T, fn func(c *gin.Context)) {
 
 func TestDeleteOIDCSession_DeletesOIDCSession(t *testing.T) {
 	runInSession(t, func(c *gin.Context) {
-		assert.NoError(t, setOIDCSession(c, "google", "state", "S256", "challenge", "verifier", "/authorize", false))
+		assert.NoError(t, setOIDCSession(c, &oidcSession{State: "state", PKCECodeChallengeMethod: "S256", PKCECodeChallenge: "challenge", PKCECodeVerifier: "verifier", RedirectURI: "/authorize"}))
 		assert.NoError(t, setEmailToSession(c, "alex@test.com"))
 
-		assert.NoError(t, deleteOIDCSession(c, "google"))
+		assert.NoError(t, deleteOIDCSession(c))
 
 		assert.False(t, isKeyExistInSession(c, sessionOIDCKey))
 		assert.True(t, isKeyExistInSession(c, sessionEmailKey))
-		_, _, _, _, _, _, err := getOIDCSession(c, "google")
+		_, err := getOIDCSession(c)
 		assert.Error(t, err)
 	})
 }
 
 func TestDeleteOIDCSession_InvalidSessionCookie_ReturnsError(t *testing.T) {
 	mwRunWithInvalidSessionCookie(t, func(c *gin.Context) {
-		assert.Error(t, deleteOIDCSession(c, "google"))
+		assert.Error(t, deleteOIDCSession(c))
 	})
 }
 
@@ -288,7 +283,7 @@ func TestGetOIDCSession_NotAString_ReturnsError(t *testing.T) {
 			sessionOIDCKey: 123,
 		}))
 
-		_, _, _, _, _, _, err := getOIDCSession(c, "google")
+		_, err := getOIDCSession(c)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "is not a string")

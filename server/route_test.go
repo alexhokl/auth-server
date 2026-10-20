@@ -100,6 +100,35 @@ func TestUserInfoWithoutAccessToken(t *testing.T) {
 	}
 }
 
+func TestOIDCRoutes(t *testing.T) {
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/signin/google/start"},
+		{http.MethodGet, "/signin/google/callback"},
+		// Apple posts the callback as a form
+		{http.MethodPost, "/signin/apple/callback"},
+	}
+	for _, route := range routes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			disabledRouter, _ := getRouterWithOIDC(false)
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(route.method, route.path, nil)
+			disabledRouter.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusNotFound, w.Code)
+
+			// without an OIDC session or a client, the request is rejected
+			// by the handler rather than the router
+			enabledRouter, _ := getRouterWithOIDC(true)
+			w = httptest.NewRecorder()
+			req, _ = http.NewRequest(route.method, route.path, nil)
+			enabledRouter.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
+		})
+	}
+}
+
 func TestSwaggerJson(t *testing.T) {
 	router, _ := getRouter()
 	w := httptest.NewRecorder()
@@ -110,6 +139,10 @@ func TestSwaggerJson(t *testing.T) {
 }
 
 func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
+	return getRouterWithOIDC(false)
+}
+
+func getRouterWithOIDC(enableOIDC bool) (*gin.Engine, sqlmock.Sqlmock) {
 	mockDB, mock, _ := sqlmock.New()
 	dialector := database.GetDatabaseDialectorFromConnection(mockDB)
 	router, err := server.GetRouter(
@@ -120,6 +153,7 @@ func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 		nil,
 		server.RouterConfig{
 			EnableFrontendEndpoints: true,
+			EnableOIDC:              enableOIDC,
 			ExpirationPeriod:        3600,
 			Domain:                  "test.com",
 			SessionCookieName:       "auth-server",

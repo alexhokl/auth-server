@@ -1,11 +1,6 @@
 package api
 
 import (
-	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,62 +9,12 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/alexhokl/auth-server/db"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"gorm.io/gorm"
 )
-
-func TestGetOAuthConfig_Google(t *testing.T) {
-	client := &db.OidcClient{
-		Name:         string(Google),
-		ClientID:     "google-client-id",
-		ClientSecret: "google-client-secret",
-		RedirectURI:  "https://auth.example.com/signin/google/callback",
-	}
-
-	config, err := getOAuthConfig(client)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, config)
-	assert.Equal(t, google.Endpoint, config.Endpoint)
-	assert.Equal(t, []string{"openid", "profile", "email"}, config.Scopes)
-	assert.Equal(t, "google-client-id", config.ClientID)
-	assert.Equal(t, "google-client-secret", config.ClientSecret)
-	assert.Equal(
-		t,
-		"https://auth.example.com/signin/google/callback",
-		config.RedirectURL,
-	)
-}
-
-func TestGetOAuthConfig_NotImplementedProviders(t *testing.T) {
-	notImplemented := []OIDCProvider{Facebook, Microsoft}
-
-	for _, provider := range notImplemented {
-		t.Run(string(provider), func(t *testing.T) {
-			config, err := getOAuthConfig(&db.OidcClient{Name: string(provider)})
-
-			assert.Error(t, err)
-			assert.Nil(t, config)
-			assert.Contains(t, err.Error(), "not implemented")
-		})
-	}
-}
-
-func TestGetOAuthConfig_UnsupportedProvider(t *testing.T) {
-	config, err := getOAuthConfig(&db.OidcClient{Name: "some-provider"})
-
-	assert.Error(t, err)
-	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "some-provider")
-}
 
 func oidcTestClientColumns() []string {
 	return []string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}
@@ -95,6 +40,7 @@ func oidcSessionValues(t *testing.T, state string) map[string]interface{} {
 		PKCECodeChallengeMethod: pkceChallengeMethod,
 		PKCECodeChallenge:       "challenge",
 		PKCECodeVerifier:        "verifier",
+		Nonce:                   oidcTestNonce,
 		RedirectURI:             "/authorize",
 	})
 	assert.NoError(t, err)
@@ -186,11 +132,10 @@ func TestRedirectToOIDCEndpoint_Google_ReturnsFound(t *testing.T) {
 			router, _, mock := getTestRouter()
 			router.GET("/:action/:oidc_name/start", RedirectToOIDCEndpoint)
 
-			var state, codeChallengeMethod, codeChallenge, codeVerifier, redirectURI string
-			var isSignUp bool
+			var session *oidcSession
 			var sessionErr error
 			router.GET("/__oidc_read_session", func(c *gin.Context) {
-				state, codeChallengeMethod, codeChallenge, codeVerifier, redirectURI, isSignUp, sessionErr = getOIDCSession(c, "google")
+				session, sessionErr = getOIDCSession(c)
 			})
 
 			oidcExpectGetClient(mock, "google").WillReturnRows(oidcTestClientRows("google"))
@@ -214,6 +159,7 @@ func TestRedirectToOIDCEndpoint_Google_ReturnsFound(t *testing.T) {
 			assert.Equal(t, pkceChallengeMethod, query.Get("code_challenge_method"))
 			assert.NotEmpty(t, query.Get("code_challenge"))
 			assert.NotEmpty(t, query.Get("state"))
+			assert.NotEmpty(t, query.Get("nonce"))
 
 			// the OIDC session is saved for the callback
 			readReq, _ := http.NewRequest(http.MethodGet, "/__oidc_read_session", nil)
@@ -223,12 +169,13 @@ func TestRedirectToOIDCEndpoint_Google_ReturnsFound(t *testing.T) {
 			router.ServeHTTP(httptest.NewRecorder(), readReq)
 
 			assert.NoError(t, sessionErr)
-			assert.Equal(t, query.Get("state"), state)
-			assert.Equal(t, pkceChallengeMethod, codeChallengeMethod)
-			assert.Equal(t, query.Get("code_challenge"), codeChallenge)
-			assert.NotEmpty(t, codeVerifier)
-			assert.Equal(t, "/authorize", redirectURI)
-			assert.Equal(t, action == "signup", isSignUp)
+			assert.Equal(t, query.Get("state"), session.State)
+			assert.Equal(t, query.Get("nonce"), session.Nonce)
+			assert.Equal(t, pkceChallengeMethod, session.PKCECodeChallengeMethod)
+			assert.Equal(t, query.Get("code_challenge"), session.PKCECodeChallenge)
+			assert.NotEmpty(t, session.PKCECodeVerifier)
+			assert.Equal(t, "/authorize", session.RedirectURI)
+			assert.Equal(t, action == "signup", session.IsSignUp)
 		})
 	}
 }
@@ -505,8 +452,8 @@ func TestCreateOIDCClient_Success_ReturnsCreated(t *testing.T) {
 	router.POST("/oidcclients", CreateOIDCClient)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients" ("name","client_id","client_secret","redirect_uri","button_name") VALUES ($1,$2,$3,$4,$5)`)).
-		WithArgs("google", "google-client-id", "google-client-secret", "https://test.com/signin/google/callback", "Sign in with Google").
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "oidc_clients" ("name","client_id","client_secret","redirect_uri","button_name","issuer","team_id","key_id") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`)).
+		WithArgs("google", "google-client-id", "google-client-secret", "https://test.com/signin/google/callback", "Sign in with Google", "", "", "").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -653,151 +600,6 @@ func TestDeleteOIDCClient_Success_ReturnsOK(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// getUserInformationFromOIDCProviderCallback Tests
-
-func oidcTestGinContext() *gin.Context {
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request, _ = http.NewRequest(http.MethodGet, "/signin/google/callback", nil)
-	return c
-}
-
-func TestGetUserInformationFromOIDCProviderCallback_GoogleWithoutIDToken_ReturnsError(t *testing.T) {
-	token := &oauth2.Token{AccessToken: "access-token"}
-
-	email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: string(Google)}, token, oidcTestGinContext())
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to get ID token")
-	assert.Empty(t, email)
-}
-
-func TestGetUserInformationFromOIDCProviderCallback_NotImplementedProviders_ReturnsError(t *testing.T) {
-	for _, provider := range []OIDCProvider{Facebook, Microsoft} {
-		t.Run(string(provider), func(t *testing.T) {
-			token := &oauth2.Token{AccessToken: "access-token"}
-
-			email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: string(provider)}, token, oidcTestGinContext())
-
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "not implemented")
-			assert.Empty(t, email)
-		})
-	}
-}
-
-func TestGetUserInformationFromOIDCProviderCallback_UnsupportedProvider_ReturnsError(t *testing.T) {
-	token := &oauth2.Token{AccessToken: "access-token"}
-
-	email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: "some-provider"}, token, oidcTestGinContext())
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported OIDC client: some-provider")
-	assert.Empty(t, email)
-}
-
-// OIDCCallback Tests with a fake Google
-
-const oidcTestGoogleClientID = "google-client-id"
-const oidcTestGoogleKeyID = "test-key"
-
-// oidcRoundTripper serves requests with a handler instead of the network.
-type oidcRoundTripper struct {
-	handler http.Handler
-}
-
-func (rt *oidcRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	w := httptest.NewRecorder()
-	rt.handler.ServeHTTP(w, r)
-	return w.Result(), nil
-}
-
-type oidcFakeGoogle struct {
-	key             *ecdsa.PrivateKey
-	tokenStatusCode int
-	idToken         string
-}
-
-// oidcNewFakeGoogle returns a fake Google which issues an ID token of the
-// given email.
-func oidcNewFakeGoogle(t *testing.T, email string) *oidcFakeGoogle {
-	t.Helper()
-
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	assert.NoError(t, err)
-
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
-		"iss":   "https://accounts.google.com",
-		"aud":   oidcTestGoogleClientID,
-		"sub":   "1234567890",
-		"email": email,
-		"iat":   time.Now().Unix(),
-		"exp":   time.Now().Add(time.Hour).Unix(),
-	})
-	token.Header["kid"] = oidcTestGoogleKeyID
-	idToken, err := token.SignedString(key)
-	assert.NoError(t, err)
-
-	return &oidcFakeGoogle{
-		key:             key,
-		tokenStatusCode: http.StatusOK,
-		idToken:         idToken,
-	}
-}
-
-func (g *oidcFakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	switch r.URL.Host + r.URL.Path {
-	case "oauth2.googleapis.com/token":
-		if g.tokenStatusCode != http.StatusOK {
-			w.WriteHeader(g.tokenStatusCode)
-			_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
-			return
-		}
-		response := map[string]interface{}{
-			"access_token": "access-token",
-			"token_type":   "Bearer",
-			"expires_in":   3600,
-		}
-		if g.idToken != "" {
-			response["id_token"] = g.idToken
-		}
-		_ = json.NewEncoder(w).Encode(response)
-	case "accounts.google.com/.well-known/openid-configuration":
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"issuer":                                "https://accounts.google.com",
-			"authorization_endpoint":                "https://accounts.google.com/o/oauth2/v2/auth",
-			"token_endpoint":                        "https://oauth2.googleapis.com/token",
-			"jwks_uri":                              "https://www.googleapis.com/oauth2/v3/certs",
-			"id_token_signing_alg_values_supported": []string{"ES256"},
-		})
-	case "www.googleapis.com/oauth2/v3/certs":
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"keys": []map[string]string{
-				{
-					"kty": "EC",
-					"crv": "P-256",
-					"alg": "ES256",
-					"use": "sig",
-					"kid": oidcTestGoogleKeyID,
-					"x":   base64.RawURLEncoding.EncodeToString(g.key.X.FillBytes(make([]byte, 32))),
-					"y":   base64.RawURLEncoding.EncodeToString(g.key.Y.FillBytes(make([]byte, 32))),
-				},
-			},
-		})
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-// oidcCallbackRequest returns a callback request which reaches the fake
-// Google instead of the network.
-func oidcCallbackRequest(google *oidcFakeGoogle) *http.Request {
-	client := &http.Client{Transport: &oidcRoundTripper{handler: google}}
-	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/signin/google/callback?state=expected-state&code=auth-code", nil)
-	return req
-}
-
 func oidcSignUpSessionValues(t *testing.T, redirectURI string) map[string]interface{} {
 	t.Helper()
 
@@ -806,6 +608,7 @@ func oidcSignUpSessionValues(t *testing.T, redirectURI string) map[string]interf
 		PKCECodeChallengeMethod: pkceChallengeMethod,
 		PKCECodeChallenge:       "challenge",
 		PKCECodeVerifier:        "verifier",
+		Nonce:                   oidcTestNonce,
 		RedirectURI:             redirectURI,
 		IsSignUp:                true,
 	})
@@ -886,7 +689,7 @@ func TestOIDCCallback_InvalidIDToken_ReturnsInternalServerError(t *testing.T) {
 
 	google := oidcNewFakeGoogle(t, "alex@test.com")
 	// signed by a key other than the one published
-	google.key, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	google.key = oidcTestRSAKey(t)
 	req := oidcCallbackRequest(google)
 	w := serveInSession(t, router, oidcSessionValues(t, "expected-state"), req)
 
@@ -1026,51 +829,4 @@ func TestOIDCCallback_SignUpCreateUserError_ReturnsInternalServerError(t *testin
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 	assert.Empty(t, oidcReadAuthenticatedEmail(router, req.Cookies()))
-}
-
-// getUserInformationFromOIDCProviderCallback Tests with a fake Google
-
-func TestGetUserInformationFromOIDCProviderCallback_GoogleValidIDToken_ReturnsEmail(t *testing.T) {
-	google := oidcNewFakeGoogle(t, "alex@test.com")
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = oidcCallbackRequest(google)
-	token := (&oauth2.Token{AccessToken: "access-token"}).WithExtra(map[string]interface{}{
-		"id_token": google.idToken,
-	})
-
-	email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: string(Google), ClientID: oidcTestGoogleClientID}, token, c)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "alex@test.com", email)
-}
-
-func TestGetUserInformationFromOIDCProviderCallback_GoogleOtherAudience_ReturnsError(t *testing.T) {
-	google := oidcNewFakeGoogle(t, "alex@test.com")
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = oidcCallbackRequest(google)
-	token := (&oauth2.Token{AccessToken: "access-token"}).WithExtra(map[string]interface{}{
-		"id_token": google.idToken,
-	})
-
-	email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: string(Google), ClientID: "other-client-id"}, token, c)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to verify ID token")
-	assert.Empty(t, email)
-}
-
-func TestGetUserInformationFromOIDCProviderCallback_GoogleDiscoveryFailure_ReturnsError(t *testing.T) {
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	client := &http.Client{Transport: &oidcRoundTripper{handler: http.NotFoundHandler()}}
-	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
-	c.Request, _ = http.NewRequestWithContext(ctx, http.MethodGet, "/signin/google/callback", nil)
-	token := (&oauth2.Token{AccessToken: "access-token"}).WithExtra(map[string]interface{}{
-		"id_token": "id-token",
-	})
-
-	email, err := getUserInformationFromOIDCProviderCallback(&db.OidcClient{Name: string(Google), ClientID: oidcTestGoogleClientID}, token, c)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to get ID token provider")
-	assert.Empty(t, email)
 }

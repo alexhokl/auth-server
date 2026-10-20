@@ -7,10 +7,8 @@ import (
 
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/authhelper"
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 const OIDC_START_ENDPOINT = "start"
@@ -18,14 +16,6 @@ const OIDC_CALLBACK_ENDPOINT = "callback"
 
 const lengthStateStr = 32
 const pkceChallengeMethod = "S256"
-
-type OIDCProvider string
-
-const (
-	Google    OIDCProvider = "google"
-	Facebook  OIDCProvider = "facebook"
-	Microsoft OIDCProvider = "microsoft"
-)
 
 func RedirectToOIDCEndpoint(c *gin.Context) {
 	if c.Param("action") != "signin" && c.Param("action") != "signup" {
@@ -56,7 +46,7 @@ func RedirectToOIDCEndpoint(c *gin.Context) {
 		return
 	}
 
-	oauthConfig, err := getOAuthConfig(oidcClient)
+	oauthConfig, provider, err := getOAuthConfig(c.Request.Context(), oidcClient)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get OAuth configuration")
 		return
@@ -67,17 +57,38 @@ func RedirectToOIDCEndpoint(c *gin.Context) {
 		handleInternalError(c, err, "Unable to generate state")
 		return
 	}
-	codeVerifier := authhelper.GeneratePKCEVerifier()
-	codeChallenge := authhelper.GeneratePKCEChallenge(codeVerifier)
-	authOpts := []oauth2.AuthCodeOption{
-		oauth2.AccessTypeOnline,
-		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-		oauth2.SetAuthURLParam("code_challenge_method", pkceChallengeMethod),
+	session := &oidcSession{
+		State:       state,
+		RedirectURI: redirectURL,
+		IsSignUp:    c.Param("action") == "signup",
+	}
+	var authOpts []oauth2.AuthCodeOption
+	for key, value := range provider.authParams {
+		authOpts = append(authOpts, oauth2.SetAuthURLParam(key, value))
+	}
+	if provider.usesPKCE {
+		session.PKCECodeVerifier = authhelper.GeneratePKCEVerifier()
+		session.PKCECodeChallenge = authhelper.GeneratePKCEChallenge(session.PKCECodeVerifier)
+		session.PKCECodeChallengeMethod = pkceChallengeMethod
+		authOpts = append(
+			authOpts,
+			oauth2.SetAuthURLParam("code_challenge", session.PKCECodeChallenge),
+			oauth2.SetAuthURLParam("code_challenge_method", pkceChallengeMethod),
+		)
+	}
+	if provider.usesNonce {
+		nonce, err := authhelper.GenerateState(lengthStateStr)
+		if err != nil {
+			handleInternalError(c, err, "Unable to generate nonce")
+			return
+		}
+		session.Nonce = nonce
+		authOpts = append(authOpts, oauth2.SetAuthURLParam("nonce", nonce))
 	}
 
 	authCodeURL := oauthConfig.AuthCodeURL(state, authOpts...)
 
-	if err := setOIDCSession(c, oidcName, state, pkceChallengeMethod, codeChallenge, codeVerifier, redirectURL, c.Param("action") == "signup"); err != nil {
+	if err := setOIDCSession(c, session); err != nil {
 		handleInternalError(c, err, "Unable to save OIDC session")
 		return
 	}
@@ -93,22 +104,22 @@ func RedirectToOIDCEndpoint(c *gin.Context) {
 func OIDCCallback(c *gin.Context) {
 	oidcName := c.Param("oidc_name")
 
-	// originState, originCodeChallengeMethod, originCodeChallenge, originalCodeVerifier, redirectURI, isSignUp, err := getOIDCSession(c, oidcName)
-	originState, _, _, originalCodeVerifier, redirectURI, isSignUp, err := getOIDCSession(c, oidcName)
+	session, err := getOIDCSession(c)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get OIDC session")
 		return
 	}
 
-	state := c.Query("state")
+	// a callback is a form post (Apple) or a redirect with a query string
+	state := c.Request.FormValue("state")
 
-	if c.Query("state") != originState {
-		handleBadRequest(c, fmt.Errorf("expected state [%s] but got [%s]", originState, state), "Invalid state")
+	if state != session.State {
+		handleBadRequest(c, fmt.Errorf("expected state [%s] but got [%s]", session.State, state), "Invalid state")
 		return
 	}
 
-	// the state and the PKCE verifier are for one callback only
-	if err := deleteOIDCSession(c, oidcName); err != nil {
+	// the state, the PKCE verifier and the nonce are for one callback only
+	if err := deleteOIDCSession(c); err != nil {
 		handleInternalError(c, err, "Unable to delete OIDC session")
 		return
 	}
@@ -125,9 +136,9 @@ func OIDCCallback(c *gin.Context) {
 	// 	return
 	// }
 
-	errorParam := c.Query("error")
+	errorParam := c.Request.FormValue("error")
 	if errorParam != "" {
-		if errorDescription := c.Query("error_description"); errorDescription != "" {
+		if errorDescription := c.Request.FormValue("error_description"); errorDescription != "" {
 			err = fmt.Errorf("%s: %s", errorParam, errorDescription)
 			handleBadRequest(c, err, "Error from OIDC provider")
 			return
@@ -151,20 +162,26 @@ func OIDCCallback(c *gin.Context) {
 		handleInternalError(c, nil, "Unable to get OIDC client")
 		return
 	}
-	oauthConfig, err := getOAuthConfig(oidcClient)
+	oauthConfig, provider, err := getOAuthConfig(c.Request.Context(), oidcClient)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get OAuth configuration")
 		return
 	}
+	if provider.clientSecret != nil {
+		if oauthConfig.ClientSecret, err = provider.clientSecret(oidcClient); err != nil {
+			handleInternalError(c, err, "Unable to generate client secret")
+			return
+		}
+	}
 
-	authOpts := []oauth2.AuthCodeOption{
-		oauth2.SetAuthURLParam("code_verifier", originalCodeVerifier),
-		oauth2.SetAuthURLParam("code_challenge_method", pkceChallengeMethod),
+	var authOpts []oauth2.AuthCodeOption
+	if provider.usesPKCE {
+		authOpts = append(authOpts, oauth2.VerifierOption(session.PKCECodeVerifier))
 	}
 
 	token, err := oauthConfig.Exchange(
 		c.Request.Context(),
-		c.Query("code"),
+		c.Request.FormValue("code"),
 		authOpts...,
 	)
 	if err != nil {
@@ -172,7 +189,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	email, err := getUserInformationFromOIDCProviderCallback(oidcClient, token, c)
+	email, err := provider.email(c.Request.Context(), oidcClient, oauthConfig, token, session.Nonce)
 	if err != nil {
 		handleInternalError(c, err, "Unable to get user information from OIDC provider")
 		return
@@ -199,7 +216,7 @@ func OIDCCallback(c *gin.Context) {
 	// a sign up of an existing user is treated as a sign in as the user has
 	// proven the ownership of the email address with the OIDC provider
 	if user == nil {
-		if !isSignUp {
+		if !session.IsSignUp {
 			logger.Warn(
 				"User not found",
 				slog.String("email", email),
@@ -247,6 +264,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
+	redirectURI := session.RedirectURI
 	if redirectURI == "" {
 		redirectURI = "/authenticated"
 	}
@@ -274,12 +292,7 @@ func ListOIDCCLients(c *gin.Context) {
 
 	var viewModels []OIDCClientResponse
 	for _, c := range clients {
-		viewModels = append(viewModels, OIDCClientResponse{
-			Name:        c.Name,
-			ClientID:    c.ClientID,
-			RedirectURI: c.RedirectURI,
-			ButtonName:  c.ButtonName,
-		})
+		viewModels = append(viewModels, toOIDCClientResponse(&c))
 	}
 
 	c.JSON(http.StatusOK, viewModels)
@@ -304,6 +317,13 @@ func CreateOIDCClient(c *gin.Context) {
 		ClientSecret: request.ClientSecret,
 		RedirectURI:  request.RedirectURI,
 		ButtonName:   request.ButtonName,
+		Issuer:       request.Issuer,
+		TeamID:       request.TeamID,
+		KeyID:        request.KeyID,
+	}
+	if err := validateOIDCClient(&client); err != nil {
+		handleBadRequest(c, err, "Invalid OIDC client")
+		return
 	}
 
 	if err := db.CreateOIDCClient(dbConn, &client); err != nil {
@@ -311,12 +331,7 @@ func CreateOIDCClient(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, OIDCClientResponse{
-		Name:        client.Name,
-		ClientID:    client.ClientID,
-		RedirectURI: client.RedirectURI,
-		ButtonName:  client.ButtonName,
-	})
+	c.JSON(http.StatusCreated, toOIDCClientResponse(&client))
 }
 
 func UpdateOIDCClient(c *gin.Context) {
@@ -338,6 +353,13 @@ func UpdateOIDCClient(c *gin.Context) {
 		ClientSecret: request.ClientSecret,
 		RedirectURI:  request.RedirectURI,
 		ButtonName:   request.ButtonName,
+		Issuer:       request.Issuer,
+		TeamID:       request.TeamID,
+		KeyID:        request.KeyID,
+	}
+	if err := validateOIDCClient(client); err != nil {
+		handleBadRequest(c, err, "Invalid OIDC client")
+		return
 	}
 
 	if err := db.UpdateOIDCClient(dbConn, client); err != nil {
@@ -345,12 +367,7 @@ func UpdateOIDCClient(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, OIDCClientResponse{
-		Name:        client.Name,
-		ClientID:    client.ClientID,
-		RedirectURI: client.RedirectURI,
-		ButtonName:  client.ButtonName,
-	})
+	c.JSON(http.StatusOK, toOIDCClientResponse(client))
 }
 
 func DeleteOIDCClient(c *gin.Context) {
@@ -370,72 +387,14 @@ func DeleteOIDCClient(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func getOAuthConfig(oidcClient *db.OidcClient) (*oauth2.Config, error) {
-	var config *oauth2.Config
-	provider := OIDCProvider(oidcClient.Name)
-	switch provider {
-	case Google:
-		config = &oauth2.Config{
-			Endpoint: google.Endpoint,
-			Scopes:   []string{"openid", "profile", "email"},
-		}
-	case Facebook:
-		// config = &oauth2.Config{
-		// 	Endpoint: facebook.Endpoint,
-		// 	Scopes:   []string{"public_profile", "email"},
-		// }
-		return nil, fmt.Errorf("not implemented")
-	case Microsoft:
-		// config = &oauth2.Config{
-		// 	Endpoint: microsoft.LiveConnectEndpoint,
-		// 	Scopes:   []string{"wl.basic", "wl.emails"},
-		// }
-		return nil, fmt.Errorf("not implemented")
-	default:
-		return nil, fmt.Errorf("unsupported OIDC client: %s", oidcClient.Name)
-	}
-
-	config.ClientID = oidcClient.ClientID
-	config.ClientSecret = oidcClient.ClientSecret
-	config.RedirectURL = oidcClient.RedirectURI
-	return config, nil
-}
-
-func getUserInformationFromOIDCProviderCallback(oidcClient *db.OidcClient, token *oauth2.Token, c *gin.Context) (string, error) {
-	switch OIDCProvider(oidcClient.Name) {
-	case Google:
-		idTokenString, ok := token.Extra("id_token").(string)
-		if !ok {
-			return "", fmt.Errorf("unable to get ID token")
-		}
-		provider, err := oidc.NewProvider(c.Request.Context(), "https://accounts.google.com")
-		if err != nil {
-			return "", fmt.Errorf("unable to get ID token provider: %w", err)
-		}
-		verifier := provider.Verifier(&oidc.Config{ClientID: oidcClient.ClientID})
-		idToken, err := verifier.Verify(c.Request.Context(), idTokenString)
-		if err != nil {
-			return "", fmt.Errorf("unable to verify ID token: %w", err)
-		}
-
-		var claims struct {
-			Email string `json:"email"`
-		}
-		if err := idToken.Claims(&claims); err != nil {
-			return "", fmt.Errorf("unable to get claims from ID token: %w", err)
-		}
-		return claims.Email, nil
-	case Facebook:
-		slog.Info("Facebook",
-			slog.Any("token", token),
-		)
-		return "", fmt.Errorf("not implemented")
-	case Microsoft:
-		slog.Info("Microsoft",
-			slog.Any("token", token),
-		)
-		return "", fmt.Errorf("not implemented")
-	default:
-		return "", fmt.Errorf("unsupported OIDC client: %s", oidcClient.Name)
+func toOIDCClientResponse(client *db.OidcClient) OIDCClientResponse {
+	return OIDCClientResponse{
+		Name:        client.Name,
+		ClientID:    client.ClientID,
+		RedirectURI: client.RedirectURI,
+		ButtonName:  client.ButtonName,
+		Issuer:      client.Issuer,
+		TeamID:      client.TeamID,
+		KeyID:       client.KeyID,
 	}
 }
