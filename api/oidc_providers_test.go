@@ -394,7 +394,7 @@ func TestGetOAuthConfig_Providers(t *testing.T) {
 }
 
 func TestGetOAuthConfig_UnsupportedProvider(t *testing.T) {
-	for _, name := range []string{"some-provider", "facebook"} {
+	for _, name := range []string{"some-provider", "unsupported-provider"} {
 		t.Run(name, func(t *testing.T) {
 			config, provider, err := getOAuthConfig(context.Background(), &db.OidcClient{Name: name})
 
@@ -442,7 +442,7 @@ func TestValidateOIDCClient(t *testing.T) {
 			return c[Microsoft]
 		}, true},
 		{"unsupported provider", func(c map[OIDCProvider]*db.OidcClient) *db.OidcClient {
-			return &db.OidcClient{Name: "facebook"}
+			return &db.OidcClient{Name: "unsupported-provider"}
 		}, false},
 		{"apple without team ID", func(c map[OIDCProvider]*db.OidcClient) *db.OidcClient {
 			c[Apple].TeamID = ""
@@ -1007,7 +1007,7 @@ func TestOIDCCallback_FormPostStateMismatch_ReturnsBadRequest(t *testing.T) {
 
 func TestCreateOIDCClient_InvalidClients_ReturnsBadRequest(t *testing.T) {
 	bodies := map[string]string{
-		"unsupported provider": `{"name":"facebook","client_id":"id","client_secret":"secret","redirect_uri":"https://test.com/cb","button_name":"Facebook"}`,
+		"unsupported provider": `{"name":"unsupported-provider","client_id":"id","client_secret":"secret","redirect_uri":"https://test.com/cb","button_name":"Unsupported"}`,
 		"okta without issuer":  `{"name":"okta","client_id":"id","client_secret":"secret","redirect_uri":"https://test.com/cb","button_name":"Okta"}`,
 		"microsoft with domain tenant": `{"name":"microsoft","client_id":"id","client_secret":"secret","redirect_uri":"https://test.com/cb","button_name":"Microsoft",` +
 			`"issuer":"https://login.microsoftonline.com/contoso.com/v2.0"}`,

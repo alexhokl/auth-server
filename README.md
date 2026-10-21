@@ -235,8 +235,8 @@ administrator, it is trusted only if Microsoft has verified the owner of its
 domain. Add optional claims `email` and `xms_edov` to the ID token in the app
 registration; otherwise only personal Microsoft accounts can sign in.
 
-Facebook is no longer supported; an existing client of it is not shown on the
-sign-in page and can be removed with `DELETE /oidcclients/facebook`.
+A client of a provider which is no longer supported is not shown on the
+sign-in page and can be removed with `DELETE /oidcclients/:name`.
 
 ## Development setup
 

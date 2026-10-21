@@ -1502,7 +1502,7 @@ func TestSignInUI_OIDCEnabledUnsupportedProvider_IsHidden(t *testing.T) {
 	router.GET("/signin", WithOIDC(true), SignInUI)
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
 		WillReturnRows(sqlmock.NewRows([]string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}).
-			AddRow("facebook", "client-id", "secret", "https://test.com/callback", "Sign in with Facebook").
+			AddRow("unsupported-provider", "client-id", "secret", "https://test.com/callback", "Sign in with Unsupported").
 			AddRow("github", "client-id", "secret", "https://test.com/callback", "Sign in with GitHub"))
 
 	req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
@@ -1519,7 +1519,7 @@ func TestSignInUI_OIDCEnabledOnlyUnsupportedProviders_HasNoClients(t *testing.T)
 	router.GET("/signin", WithOIDC(true), SignInUI)
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "oidc_clients"`)).
 		WillReturnRows(sqlmock.NewRows([]string{"name", "client_id", "client_secret", "redirect_uri", "button_name"}).
-			AddRow("facebook", "client-id", "secret", "https://test.com/callback", "Sign in with Facebook"))
+			AddRow("unsupported-provider", "client-id", "secret", "https://test.com/callback", "Sign in with Unsupported"))
 
 	req, _ := http.NewRequest(http.MethodGet, "/signin", nil)
 	w := userServe(router, req)
