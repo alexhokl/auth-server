@@ -18,6 +18,7 @@ import (
 	"github.com/alexhokl/helper/database"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -1575,6 +1576,409 @@ func TestListUsers_QueryError_ReturnsInternalServerError(t *testing.T) {
 		WillReturnError(userErrDatabase)
 
 	req, _ := http.NewRequest(http.MethodGet, "/users", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// User administration Tests
+
+const userAdminEmail = "admin@test.com"
+
+func userJSONRequest(method string, target string, body string) *http.Request {
+	req, _ := http.NewRequest(method, target, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+func TestGetUser_Found_ReturnsUser(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/users/:email", GetUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+
+	req, _ := http.NewRequest(http.MethodGet, "/users/alex@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var user UserResponse
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &user))
+	assert.Equal(t, "alex@test.com", user.Email)
+	assert.Equal(t, "Alex", user.DisplayName)
+	assert.True(t, user.IsEnabled)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUser_NotFound_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/users/:email", GetUser)
+	userExpectGetUserError(mock, "nobody@test.com", gorm.ErrRecordNotFound)
+
+	req, _ := http.NewRequest(http.MethodGet, "/users/nobody@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUser_QueryError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.GET("/users/:email", GetUser)
+	userExpectGetUserError(mock, "alex@test.com", userErrDatabase)
+
+	req, _ := http.NewRequest(http.MethodGet, "/users/alex@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUserAdministration_NoDatabaseConnection_ReturnsInternalServerError(t *testing.T) {
+	router := userGetTestRouterWithoutDB()
+	router.GET("/users/:email", GetUser)
+	router.PATCH("/users/:email", UpdateUser)
+	router.DELETE("/users/:email", DeleteUser)
+	router.POST("/users/:email/roles", AddUserRole)
+	router.DELETE("/users/:email/roles/:role", RemoveUserRole)
+
+	requests := []*http.Request{
+		userJSONRequest(http.MethodGet, "/users/alex@test.com", ""),
+		userJSONRequest(http.MethodPatch, "/users/alex@test.com", `{"display_name": "Alex"}`),
+		userJSONRequest(http.MethodDelete, "/users/alex@test.com", ""),
+		userJSONRequest(http.MethodPost, "/users/alex@test.com/roles", `{"name": "admin"}`),
+		userJSONRequest(http.MethodDelete, "/users/alex@test.com/roles/admin", ""),
+	}
+	for _, req := range requests {
+		w := userServe(router, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code, req.Method+" "+req.URL.Path)
+	}
+}
+
+func TestUpdateUser_Success_ReturnsUpdatedUser(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2 WHERE email = $3`)).
+		WithArgs("Alexander", false, "alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	req := userJSONRequest(http.MethodPatch, "/users/alex@test.com", `{"display_name": "Alexander", "is_enabled": false}`)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var user UserResponse
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &user))
+	assert.Equal(t, "Alexander", user.DisplayName)
+	assert.False(t, user.IsEnabled)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_EmptyBody_ReturnsUserUnchanged(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+
+	req := userJSONRequest(http.MethodPatch, "/users/alex@test.com", `{}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_InvalidBody_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+
+	req := userJSONRequest(http.MethodPatch, "/users/alex@test.com", `{"is_enabled": "no"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_NotFound_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+	userExpectGetUserError(mock, "nobody@test.com", gorm.ErrRecordNotFound)
+
+	req := userJSONRequest(http.MethodPatch, "/users/nobody@test.com", `{"display_name": "Nobody"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_DisableOneself_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+	userExpectGetUser(mock, userAdminEmail, []byte("hash"), true)
+
+	req := userJSONRequest(http.MethodPatch, "/users/"+userAdminEmail, `{"is_enabled": false}`)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_UpdateError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.PATCH("/users/:email", UpdateUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1 WHERE email = $2`)).
+		WillReturnError(userErrDatabase)
+	mock.ExpectRollback()
+
+	req := userJSONRequest(http.MethodPatch, "/users/alex@test.com", `{"display_name": "Alexander"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func userExpectHasClients(mock sqlmock.Sqlmock, email string, count int) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "clients" WHERE user_email = $1`)).
+		WithArgs(email).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(count))
+}
+
+func TestDeleteUser_Success_ReturnsNoContent(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	userExpectHasClients(mock, "alex@test.com", 0)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_confirmations" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "users" WHERE email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com", nil)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_NotFound_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUserError(mock, "nobody@test.com", gorm.ErrRecordNotFound)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/nobody@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_Oneself_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUser(mock, userAdminEmail, []byte("hash"), true)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/"+userAdminEmail, nil)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_OwningClients_ReturnsConflict(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	userExpectHasClients(mock, "alex@test.com", 1)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_ClientQueryError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "clients"`)).
+		WillReturnError(userErrDatabase)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_DeleteError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email", DeleteUser)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	userExpectHasClients(mock, "alex@test.com", 0)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_credentials"`)).
+		WillReturnError(userErrDatabase)
+	mock.ExpectRollback()
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func userExpectFindRole(mock sqlmock.Sqlmock, role string, exists bool) {
+	rows := sqlmock.NewRows([]string{"name"})
+	if exists {
+		rows.AddRow(role)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "roles" WHERE name = $1`)).
+		WillReturnRows(rows)
+}
+
+func TestAddUserRole_Success_ReturnsCreated(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/users/:email/roles", AddUserRole)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectBegin()
+	userExpectFindRole(mock, "editor", false)
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "roles" ("name") VALUES ($1)`)).
+		WithArgs("editor").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles" ("user_email","role_name") VALUES ($1,$2)`)).
+		WithArgs("alex@test.com", "editor").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	req := userJSONRequest(http.MethodPost, "/users/alex@test.com/roles", `{"name": "editor"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_HeldAlready_ReturnsConflict(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/users/:email/roles", AddUserRole)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectBegin()
+	userExpectFindRole(mock, "admin", true)
+	// unique_violation of PostgreSQL
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles"`)).
+		WillReturnError(&pgconn.PgError{Code: "23505"})
+	mock.ExpectRollback()
+
+	req := userJSONRequest(http.MethodPost, "/users/alex@test.com/roles", `{"name": "admin"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_MissingName_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/users/:email/roles", AddUserRole)
+
+	req := userJSONRequest(http.MethodPost, "/users/alex@test.com/roles", `{}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_NotFound_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/users/:email/roles", AddUserRole)
+	userExpectGetUserError(mock, "nobody@test.com", gorm.ErrRecordNotFound)
+
+	req := userJSONRequest(http.MethodPost, "/users/nobody@test.com/roles", `{"name": "admin"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_InsertError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/users/:email/roles", AddUserRole)
+	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
+	mock.ExpectBegin()
+	userExpectFindRole(mock, "admin", true)
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles"`)).
+		WillReturnError(userErrDatabase)
+	mock.ExpectRollback()
+
+	req := userJSONRequest(http.MethodPost, "/users/alex@test.com/roles", `{"name": "admin"}`)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func userExpectRemoveUserRole(mock sqlmock.Sqlmock, email string, role string, rowsAffected int64) {
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles" WHERE user_email = $1 AND role_name = $2`)).
+		WithArgs(email, role).
+		WillReturnResult(sqlmock.NewResult(0, rowsAffected))
+	mock.ExpectCommit()
+}
+
+func TestRemoveUserRole_Success_ReturnsNoContent(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email/roles/:role", RemoveUserRole)
+	userExpectRemoveUserRole(mock, "alex@test.com", "admin", 1)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com/roles/admin", nil)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRemoveUserRole_NotHeld_ReturnsNotFound(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email/roles/:role", RemoveUserRole)
+	userExpectRemoveUserRole(mock, "alex@test.com", "editor", 0)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com/roles/editor", nil)
+	w := userServe(router, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRemoveUserRole_OwnAdminRole_ReturnsBadRequest(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email/roles/:role", RemoveUserRole)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/"+userAdminEmail+"/roles/admin", nil)
+	w := serveInSession(t, router, authenticatedSession(userAdminEmail), req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRemoveUserRole_DeleteError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.DELETE("/users/:email/roles/:role", RemoveUserRole)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles"`)).
+		WillReturnError(userErrDatabase)
+	mock.ExpectRollback()
+
+	req, _ := http.NewRequest(http.MethodDelete, "/users/alex@test.com/roles/admin", nil)
 	w := userServe(router, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)

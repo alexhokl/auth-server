@@ -169,6 +169,15 @@ definitions:
       type:
         type: string
     type: object
+  api.CredentialInfo:
+    properties:
+      id:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+    type: object
   api.DummyAuthenticationExtensionsClientOutputs:
     additionalProperties: true
     type: object
@@ -256,6 +265,31 @@ definitions:
       sub:
         type: string
     type: object
+  api.UserResponse:
+    properties:
+      credentials:
+        items:
+          $ref: '#/definitions/api.CredentialInfo'
+        type: array
+      display_name:
+        type: string
+      email:
+        type: string
+      is_enabled:
+        type: boolean
+      roles:
+        items:
+          type: string
+        type: array
+    type: object
+  api.UserRoleRequest:
+    properties:
+      name:
+        example: admin
+        type: string
+    required:
+    - name
+    type: object
   api.UserSignUpRequest:
     properties:
       email:
@@ -267,6 +301,15 @@ definitions:
     required:
     - email
     - password
+    type: object
+  api.UserUpdateRequest:
+    properties:
+      display_name:
+        example: Alex
+        type: string
+      is_enabled:
+        example: true
+        type: boolean
     type: object
 info:
   contact: {}
@@ -567,4 +610,159 @@ paths:
       summary: OpenID Connect userinfo endpoint
       tags:
       - OpenID
+  /users:
+    get:
+      description: Lists users with their roles and credentials
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.UserResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+      summary: Lists users
+      tags:
+      - users
+  /users/{email}:
+    delete:
+      description: Deletes a user together with their credentials and roles. A user
+        owning OAuth clients cannot be deleted, and an administrator cannot delete
+        themselves.
+      parameters:
+      - description: Email address of the user
+        in: path
+        name: email
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Deletes a user
+      tags:
+      - users
+    get:
+      description: Retrieves a user with their roles and credentials
+      parameters:
+      - description: Email address of the user
+        in: path
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserResponse'
+        "404":
+          description: Not Found
+        "500":
+          description: Internal Server Error
+      summary: Retrieves a user
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: Patches the display name or the enabled state of a user; only the
+        fields provided are updated. An administrator cannot disable themselves.
+      parameters:
+      - description: Email address of the user
+        in: path
+        name: email
+        required: true
+        type: string
+      - description: User details to be updated
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.UserUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserResponse'
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "500":
+          description: Internal Server Error
+      summary: Patches a user
+      tags:
+      - users
+  /users/{email}/roles:
+    post:
+      consumes:
+      - application/json
+      description: Grants a role to a user; the role is created if it does not exist
+      parameters:
+      - description: Email address of the user
+        in: path
+        name: email
+        required: true
+        type: string
+      - description: Role to be granted
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.UserRoleRequest'
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Grants a role to a user
+      tags:
+      - users
+  /users/{email}/roles/{role}:
+    delete:
+      description: Revokes a role from a user. An administrator cannot revoke their
+        own role admin.
+      parameters:
+      - description: Email address of the user
+        in: path
+        name: email
+        required: true
+        type: string
+      - description: Name of the role
+        in: path
+        name: role
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "500":
+          description: Internal Server Error
+      summary: Revokes a role from a user
+      tags:
+      - users
 swagger: "2.0"

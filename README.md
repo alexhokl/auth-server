@@ -77,7 +77,14 @@ It is based on the following libraries.
 - Scope management, globally via `/scopes` and per client via
   `/clients/:client_id/scopes`
 - OIDC provider management (`GET`, `POST`, `PUT` and `DELETE` on `/oidcclients`)
-- User listing (`GET /users`)
+- User management (`GET /users`, and `GET`, `PATCH` and `DELETE` on
+  `/users/:email`): display name and enabled state can be updated; a user
+  owning OAuth clients cannot be deleted
+- Role management per user (`POST /users/:email/roles` and
+  `DELETE /users/:email/roles/:role`); a role is created when it is first
+  granted
+- An administrator cannot disable or delete themselves, or revoke their own
+  role `admin`
 - Role-based access enforced by middleware on each route group
 
 ### Operations
@@ -98,8 +105,8 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 91.9% |
-| `db` | 93.7% |
+| `api` | 92.5% |
+| `db` | 93.8% |
 | `jwthelper` | 97.7% |
 | `server` | 99.1% |
 | `store` | 93.8% |
@@ -117,8 +124,8 @@ It is based on the following libraries.
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)
-- User administration is limited to listing (`GET /users`); there is no
-  endpoint to update, delete or change roles of a user
+- Disabling or deleting a user does not revoke their existing sessions or
+  access tokens; they stay valid until they expire
 
 ## Setting up server
 

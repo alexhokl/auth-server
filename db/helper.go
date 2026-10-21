@@ -52,6 +52,76 @@ func GetUser(db *gorm.DB, email string) (*User, error) {
 	return &user, nil
 }
 
+// UpdateUser updates the display name and the enabled state of a user; a nil
+// value leaves the field unchanged.
+func UpdateUser(db *gorm.DB, email string, displayName *string, isEnabled *bool) error {
+	updates := map[string]interface{}{}
+	if displayName != nil {
+		updates["display_name"] = *displayName
+	}
+	if isEnabled != nil {
+		updates["is_enabled"] = *isEnabled
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	if dbResult := db.Model(&User{}).Where("email = ?", email).Updates(updates); dbResult.Error != nil {
+		return dbResult.Error
+	}
+	return nil
+}
+
+// DeleteUser deletes a user together with their credentials, roles and
+// confirmations.
+func DeleteUser(db *gorm.DB, email string) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_email = ?", email).Delete(&UserCredential{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_email = ?", email).Delete(&UserRole{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_email = ?", email).Delete(&UserConfirmation{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("email = ?", email).Delete(&User{}).Error
+	})
+}
+
+// HasClients returns true if a user owns any OAuth client.
+func HasClients(db *gorm.DB, email string) (bool, error) {
+	var count int64
+	dbResult := db.Model(&Client{}).Where("user_email = ?", email).Count(&count)
+	if dbResult.Error != nil {
+		return false, dbResult.Error
+	}
+	return count > 0, nil
+}
+
+// AddUserRole grants a role to a user, creating the role if it does not exist.
+// It returns gorm.ErrDuplicatedKey if the user holds the role already.
+func AddUserRole(db *gorm.DB, email string, role string) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.FirstOrCreate(&Role{Name: role}, "name = ?", role).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&UserRole{UserEmail: email, RoleName: role}).Error; err != nil {
+			return translateError(tx, err)
+		}
+		return nil
+	})
+}
+
+// RemoveUserRole revokes a role from a user and returns false if the user does
+// not hold it.
+func RemoveUserRole(db *gorm.DB, email string, role string) (bool, error) {
+	dbResult := db.Where("user_email = ? AND role_name = ?", email, role).Delete(&UserRole{})
+	if dbResult.Error != nil {
+		return false, dbResult.Error
+	}
+	return dbResult.RowsAffected > 0, nil
+}
+
 func HasUsers(db *gorm.DB) (bool, error) {
 	var count int64
 	dbResult := db.Model(&User{}).Count(&count)

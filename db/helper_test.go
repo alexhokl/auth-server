@@ -1872,3 +1872,215 @@ func TestDeleteOIDCClient_DatabaseError(t *testing.T) {
 	assert.ErrorIs(t, err, errDatabase)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// User administration Tests
+
+func TestUpdateUser_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	displayName := "Alexander"
+	isEnabled := false
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2 WHERE email = $3`)).
+		WithArgs(displayName, isEnabled, "alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateUser(dbConn, "alex@test.com", &displayName, &isEnabled)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_NothingToUpdate(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	err := db.UpdateUser(dbConn, "alex@test.com", nil, nil)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	isEnabled := true
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
+		WithArgs(isEnabled, "alex@test.com").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.UpdateUser(dbConn, "alex@test.com", nil, &isEnabled)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	for _, query := range []string{
+		`DELETE FROM "user_credentials" WHERE user_email = $1`,
+		`DELETE FROM "user_roles" WHERE user_email = $1`,
+		`DELETE FROM "user_confirmations" WHERE user_email = $1`,
+		`DELETE FROM "users" WHERE email = $1`,
+	} {
+		mock.ExpectExec(regexp.QuoteMeta(query)).
+			WithArgs("alex@test.com").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+	mock.ExpectCommit()
+
+	err := db.DeleteUser(dbConn, "alex@test.com")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeleteUser_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_credentials" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles" WHERE user_email = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.DeleteUser(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHasClients(t *testing.T) {
+	for _, count := range []int{0, 2} {
+		dbConn, mock := getDBConnection()
+
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "clients" WHERE user_email = $1`)).
+			WithArgs("alex@test.com").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(count))
+
+		hasClients, err := db.HasClients(dbConn, "alex@test.com")
+
+		assert.NoError(t, err)
+		assert.Equal(t, count > 0, hasClients)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	}
+}
+
+func TestHasClients_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "clients"`)).
+		WillReturnError(errDatabase)
+
+	_, err := db.HasClients(dbConn, "alex@test.com")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_NewRole(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "roles" WHERE name = $1`)).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "roles" ("name") VALUES ($1)`)).
+		WithArgs("editor").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles" ("user_email","role_name") VALUES ($1,$2)`)).
+		WithArgs("alex@test.com", "editor").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.AddUserRole(dbConn, "alex@test.com", "editor")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_ExistingRole(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "roles" WHERE name = $1`)).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin"))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles" ("user_email","role_name") VALUES ($1,$2)`)).
+		WithArgs("alex@test.com", "admin").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.AddUserRole(dbConn, "alex@test.com", "admin")
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_HeldAlready_ReturnsErrDuplicatedKey(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "roles" WHERE name = $1`)).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin"))
+	// unique_violation of PostgreSQL
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user_roles"`)).
+		WillReturnError(&pgconn.PgError{Code: "23505"})
+	mock.ExpectRollback()
+
+	err := db.AddUserRole(dbConn, "alex@test.com", "admin")
+
+	assert.ErrorIs(t, err, gorm.ErrDuplicatedKey)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAddUserRole_RoleQueryError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "roles"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.AddUserRole(dbConn, "alex@test.com", "admin")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRemoveUserRole(t *testing.T) {
+	for _, rowsAffected := range []int64{0, 1} {
+		dbConn, mock := getDBConnection()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles" WHERE user_email = $1 AND role_name = $2`)).
+			WithArgs("alex@test.com", "admin").
+			WillReturnResult(sqlmock.NewResult(0, rowsAffected))
+		mock.ExpectCommit()
+
+		removed, err := db.RemoveUserRole(dbConn, "alex@test.com", "admin")
+
+		assert.NoError(t, err)
+		assert.Equal(t, rowsAffected > 0, removed)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	}
+}
+
+func TestRemoveUserRole_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "user_roles"`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	_, err := db.RemoveUserRole(dbConn, "alex@test.com", "admin")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

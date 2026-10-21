@@ -13,6 +13,7 @@ import (
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/httphelper"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // SignUp creates a new user
@@ -327,6 +328,15 @@ func HasEmailInSession(c *gin.Context) {
 	}
 }
 
+// ListUsers lists users
+//
+//	@Summary		Lists users
+//	@Description	Lists users with their roles and credentials
+//	@Tags			users
+//	@Produce		json
+//	@Success		200	{array}	api.UserResponse
+//	@Failure		500
+//	@Router			/users [get]
 func ListUsers(c *gin.Context) {
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
@@ -342,27 +352,235 @@ func ListUsers(c *gin.Context) {
 
 	var viewModels []UserResponse
 	for _, user := range users {
-		m := UserResponse{
-			Email:       user.Email,
-			DisplayName: user.DisplayName,
-			Roles:       []string{},
-			Credentials: []CredentialInfo{},
-			IsEnabled:   user.IsEnabled,
-		}
-		for _, role := range user.Roles {
-			m.Roles = append(m.Roles, role.Name)
-		}
-		for _, credential := range user.Credentials {
-			m.Credentials = append(m.Credentials, CredentialInfo{
-				ID:   credential.ID,
-				Name: credential.FriendlyName,
-			})
-		}
-
-		viewModels = append(viewModels, m)
+		viewModels = append(viewModels, ToUserResponse(user))
 	}
 
 	c.JSON(http.StatusOK, viewModels)
+}
+
+// GetUser retrieves a user
+//
+//	@Summary		Retrieves a user
+//	@Description	Retrieves a user with their roles and credentials
+//	@Tags			users
+//	@Produce		json
+//	@Param			email	path		string	true	"Email address of the user"
+//	@Success		200		{object}	api.UserResponse
+//	@Failure		404
+//	@Failure		500
+//	@Router			/users/{email} [get]
+func GetUser(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	user, ok := getUserFromPath(c, dbConn)
+	if !ok {
+		return
+	}
+
+	c.JSON(http.StatusOK, ToUserResponse(*user))
+}
+
+// UpdateUser patches a user
+//
+//	@Summary		Patches a user
+//	@Description	Patches the display name or the enabled state of a user; only the fields provided are updated. An administrator cannot disable themselves.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			email	path		string					true	"Email address of the user"
+//	@Param			body	body		api.UserUpdateRequest	true	"User details to be updated"
+//	@Success		200		{object}	api.UserResponse
+//	@Failure		400
+//	@Failure		404
+//	@Failure		500
+//	@Router			/users/{email} [patch]
+func UpdateUser(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	var req UserUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, ok := getUserFromPath(c, dbConn)
+	if !ok {
+		return
+	}
+
+	if req.IsEnabled != nil && !*req.IsEnabled && user.Email == getEmailFromSession(c) {
+		handleBadRequest(c, errors.New("unable to disable oneself"), "Unable to update user")
+		return
+	}
+
+	if err := db.UpdateUser(dbConn, user.Email, req.DisplayName, req.IsEnabled); err != nil {
+		handleInternalError(c, err, "Unable to update user")
+		return
+	}
+	if req.DisplayName != nil {
+		user.DisplayName = *req.DisplayName
+	}
+	if req.IsEnabled != nil {
+		user.IsEnabled = *req.IsEnabled
+	}
+
+	c.JSON(http.StatusOK, ToUserResponse(*user))
+}
+
+// DeleteUser deletes a user
+//
+//	@Summary		Deletes a user
+//	@Description	Deletes a user together with their credentials and roles. A user owning OAuth clients cannot be deleted, and an administrator cannot delete themselves.
+//	@Tags			users
+//	@Param			email	path	string	true	"Email address of the user"
+//	@Success		204
+//	@Failure		400
+//	@Failure		404
+//	@Failure		409
+//	@Failure		500
+//	@Router			/users/{email} [delete]
+func DeleteUser(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	user, ok := getUserFromPath(c, dbConn)
+	if !ok {
+		return
+	}
+
+	if user.Email == getEmailFromSession(c) {
+		handleBadRequest(c, errors.New("unable to delete oneself"), "Unable to delete user")
+		return
+	}
+
+	hasClients, err := db.HasClients(dbConn, user.Email)
+	if err != nil {
+		handleInternalError(c, err, "Unable to check clients of user")
+		return
+	}
+	if hasClients {
+		slog.Warn("User owns clients", slog.String("email", user.Email))
+		c.JSON(http.StatusConflict, gin.H{"error": "user owns OAuth clients"})
+		return
+	}
+
+	if err := db.DeleteUser(dbConn, user.Email); err != nil {
+		handleInternalError(c, err, "Unable to delete user")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// AddUserRole grants a role to a user
+//
+//	@Summary		Grants a role to a user
+//	@Description	Grants a role to a user; the role is created if it does not exist
+//	@Tags			users
+//	@Accept			json
+//	@Param			email	path	string				true	"Email address of the user"
+//	@Param			body	body	api.UserRoleRequest	true	"Role to be granted"
+//	@Success		201
+//	@Failure		400
+//	@Failure		404
+//	@Failure		409
+//	@Failure		500
+//	@Router			/users/{email}/roles [post]
+func AddUserRole(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	var req UserRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, ok := getUserFromPath(c, dbConn)
+	if !ok {
+		return
+	}
+
+	if err := db.AddUserRole(dbConn, user.Email, req.Name); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user holds the role already"})
+			return
+		}
+		handleInternalError(c, err, "Unable to add role to user")
+		return
+	}
+
+	c.Status(http.StatusCreated)
+}
+
+// RemoveUserRole revokes a role from a user
+//
+//	@Summary		Revokes a role from a user
+//	@Description	Revokes a role from a user. An administrator cannot revoke their own role admin.
+//	@Tags			users
+//	@Param			email	path	string	true	"Email address of the user"
+//	@Param			role	path	string	true	"Name of the role"
+//	@Success		204
+//	@Failure		400
+//	@Failure		404
+//	@Failure		500
+//	@Router			/users/{email}/roles/{role} [delete]
+func RemoveUserRole(c *gin.Context) {
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	email := c.Param("email")
+	role := c.Param("role")
+	if role == "admin" && email == getEmailFromSession(c) {
+		handleBadRequest(c, errors.New("unable to revoke role admin from oneself"), "Unable to remove role from user")
+		return
+	}
+
+	removed, err := db.RemoveUserRole(dbConn, email, role)
+	if err != nil {
+		handleInternalError(c, err, "Unable to remove role from user")
+		return
+	}
+	if !removed {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// getUserFromPath retrieves the user of path parameter email; it aborts the
+// request and returns false if the user cannot be found.
+func getUserFromPath(c *gin.Context, dbConn *gorm.DB) (*db.User, bool) {
+	email := c.Param("email")
+	user, err := db.GetUser(dbConn, email)
+	if err != nil {
+		handleInternalError(c, err, "Unable to retrieve user")
+		return nil, false
+	}
+	if user == nil {
+		slog.Warn("User not found", slog.String("email", email))
+		c.AbortWithStatus(http.StatusNotFound)
+		return nil, false
+	}
+	return user, true
 }
 
 func ChangePassword(c *gin.Context) {

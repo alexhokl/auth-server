@@ -88,6 +88,30 @@ func TestClientList(t *testing.T) {
 	// assert.Equal(t, "", w.Body.String())
 }
 
+func TestUserAdministrationRoutes(t *testing.T) {
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/users"},
+		{http.MethodGet, "/users/alex@test.com"},
+		{http.MethodPatch, "/users/alex@test.com"},
+		{http.MethodDelete, "/users/alex@test.com"},
+		{http.MethodPost, "/users/alex@test.com/roles"},
+		{http.MethodDelete, "/users/alex@test.com/roles/admin"},
+	}
+	for _, route := range routes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			router, _ := getRouter()
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(route.method, route.path, nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+		})
+	}
+}
+
 func TestUserInfoWithoutAccessToken(t *testing.T) {
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		router, _ := getRouter()

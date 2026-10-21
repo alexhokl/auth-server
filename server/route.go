@@ -171,6 +171,12 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 	users := r.Group("/users")
 	users.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())
 	users.GET("", api.ListUsers)
+	users.GET(":email", api.GetUser)
+	users.PATCH(":email", api.UpdateUser)
+	users.DELETE(":email", api.DeleteUser)
+	userRoles := users.Group("/:email/roles")
+	userRoles.POST("", api.AddUserRole)
+	userRoles.DELETE(":role", api.RemoveUserRole)
 
 	oidc := r.Group("/oidcclients")
 	oidc.Use(api.WithDatabaseConnection(dialector), api.RequiredAdminAccess())

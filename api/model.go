@@ -39,6 +39,15 @@ type UserResponse struct {
 	IsEnabled   bool             `json:"is_enabled"`
 }
 
+type UserUpdateRequest struct {
+	DisplayName *string `json:"display_name,omitempty" example:"Alex"`
+	IsEnabled   *bool   `json:"is_enabled,omitempty" example:"true"`
+}
+
+type UserRoleRequest struct {
+	Name string `json:"name" binding:"required" example:"admin"`
+}
+
 type ClientCreateRequest struct {
 	ClientID     string `json:"client_id" binding:"required" example:"cli"`
 	ClientSecret string `json:"client_secret" binding:"required" example:"P@ssw0rd"`
@@ -206,4 +215,24 @@ func ToClientResponse(c db.Client) *ClientResponse {
 		RedirectUri: c.RedirectURI,
 		UserEmail:   c.UserEmail,
 	}
+}
+
+func ToUserResponse(u db.User) UserResponse {
+	response := UserResponse{
+		Email:       u.Email,
+		DisplayName: u.DisplayName,
+		Roles:       []string{},
+		Credentials: []CredentialInfo{},
+		IsEnabled:   u.IsEnabled,
+	}
+	for _, role := range u.Roles {
+		response.Roles = append(response.Roles, role.Name)
+	}
+	for _, credential := range u.Credentials {
+		response.Credentials = append(response.Credentials, CredentialInfo{
+			ID:   credential.ID,
+			Name: credential.FriendlyName,
+		})
+	}
+	return response
 }
