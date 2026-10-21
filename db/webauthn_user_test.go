@@ -39,7 +39,16 @@ func TestUser_WebAuthnDisplayName(t *testing.T) {
 		DisplayName: "Alex",
 	}
 
-	// Currently returns Email (see TODO in source)
+	result := user.WebAuthnDisplayName()
+
+	assert.Equal(t, "Alex", result)
+}
+
+func TestUser_WebAuthnDisplayName_EmptyFallsBackToEmail(t *testing.T) {
+	user := &db.User{
+		Email: "alex@test.com",
+	}
+
 	result := user.WebAuthnDisplayName()
 
 	assert.Equal(t, "alex@test.com", result)

@@ -48,7 +48,8 @@ It is based on the following libraries.
   `POST /signin/challenge`); a hash with outdated parameters is replaced on the
   next successful sign-in
 - WebAuthn (FIDO2) registration and passwordless sign-in, including credential
-  management and clone detection; see
+  management and clone detection; the WebAuthn user display name is the
+  display name of the user, or the email address when it is not set; see
   [Current FIDO2/WebAuthn Support](#current-fido2webauthn-support)
 - Sign-up and sign-in through Google, GitHub, Apple, Okta or Microsoft,
   enabled with `AUTH_ENABLE_OIDC`; an account is matched by an email address
@@ -119,8 +120,6 @@ It is based on the following libraries.
   `api/authorization.go`) is a no-op and is not registered
 - Redirects after sign-up (`/signup_continue`) and password change
   (`/changepassword_completed`) are hard-coded
-- The WebAuthn user display name is the email address rather than the display
-  name
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)

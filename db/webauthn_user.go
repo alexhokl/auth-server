@@ -13,8 +13,10 @@ func (user *User) WebAuthnName() string {
 }
 
 func (user *User) WebAuthnDisplayName() string {
-	// TODO: return user.DisplayName when sign-up is properly implemented
-	return user.Email
+	if user.DisplayName == "" {
+		return user.Email
+	}
+	return user.DisplayName
 }
 
 func (user *User) WebAuthnCredentials() []webauthn.Credential {
