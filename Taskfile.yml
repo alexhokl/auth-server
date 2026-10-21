@@ -16,6 +16,7 @@ env:
   AUTH_PORT: "{{.PORT}}"
   AUTH_REDIS_SESSION_DB: auth-session
   AUTH_REDIS_TOKEN_DB: auth-token
+  AUTH_REDIS_RATE_LIMIT_DB: auth-rate-limit
   AUTH_APPLICATION_NAME: Auth Server
   AUTH_DOMAIN: "{{.DOMAIN}}"
   PGPASSWORD: "{{.PASSWORD}}"

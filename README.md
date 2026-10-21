@@ -58,6 +58,8 @@ It is based on the following libraries.
   which the provider has verified (see
   [Configuring external sign-in](#configuring-external-sign-in))
 - Server-side sessions held in Redis under a configurable cookie name
+- Throttling of failed sign-ins (see
+  [Throttling failed sign-ins](#throttling-failed-sign-ins))
 
 ### User and account management
 
@@ -113,16 +115,14 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 92.6% |
+| `api` | 92.8% |
 | `db` | 93.8% |
 | `jwthelper` | 97.7% |
-| `server` | 99.1% |
+| `server` | 99.2% |
 | `store` | 93.8% |
 
 ### Not yet implemented / known gaps
 
-- Detection of malicious requests (`isMaliciousRequest` in `api/helper.go`) is
-  a no-op
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)
@@ -152,6 +152,32 @@ file.
 
 Note that setting of role `admin` is important to allow the user to act as an
 administrator to configure other aspects (such as OAuth clients) of this server.
+
+## Throttling failed sign-ins
+
+Failed password and WebAuthn sign-ins are counted per email address and per
+client IP address in Redis, in a fixed window which starts at the first
+failure. Once either count reaches its limit, `POST /signin`,
+`POST /signin/challenge`, `POST /fido/signin/challenge` and
+`POST /fido/signin` respond with `429 Too Many Requests` until the window
+ends. A successful sign-in resets the count of the email address but not that
+of the IP address. Sign-in through an external provider is not counted.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `AUTH_SIGNIN_MAX_FAILURES_PER_EMAIL` | `5` | Failures of an email address before it is blocked; `0` disables the limit |
+| `AUTH_SIGNIN_MAX_FAILURES_PER_IP` | `20` | Failures from an IP address before it is blocked; `0` disables the limit |
+| `AUTH_SIGNIN_FAILURE_WINDOW` | `15m` | Length of the window, as a Go duration |
+| `AUTH_REDIS_RATE_LIMIT_DB` | `auth-rate-limit` | Prefix of the Redis keys of the counts |
+| `AUTH_TRUSTED_PROXIES` | `127.0.0.1 ::1` | Space-separated addresses or CIDRs of reverse proxies whose `X-Forwarded-For` header is trusted for the client IP address |
+
+Behind a reverse proxy such as Caddy, set `AUTH_TRUSTED_PROXIES` to the
+address the proxy connects from; otherwise every client appears to have the
+address of the proxy and shares its limit. If Redis cannot be reached, a
+sign-in is allowed and the error is logged.
+
+As the limit per email address applies to any client, anyone who knows an
+email address can block its sign-in for a window by failing on purpose.
 
 ## Configuring external sign-in
 

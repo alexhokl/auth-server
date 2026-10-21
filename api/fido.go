@@ -175,6 +175,8 @@ func (s *FidoService) Register(c *gin.Context) {
 //	@Description	This starts the dance for sign in
 //	@Tags			user
 //	@Produce		json
+//	@Failure		401	"Invalid email or password"
+//	@Failure		429	"Too many failed sign-ins"
 //	@Router			/fido/signin/challenge [post]
 func (s *FidoService) LoginChallenge(c *gin.Context) {
 	email := getEmailFromSession(c)
@@ -187,6 +189,11 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 
 	if !isSafeRedirectURL(redirectURL) {
 		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	if isMaliciousRequest(c, email) {
+		c.AbortWithStatus(http.StatusTooManyRequests)
 		return
 	}
 
@@ -206,6 +213,7 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 			"Unable to find user",
 			slog.String("error", err.Error()),
 		)
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -214,11 +222,13 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 			"User not found",
 			slog.String("email", email),
 		)
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 	if !user.IsEnabled {
 		logger.Warn("User is disabled")
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -252,6 +262,8 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body	DummyCredentialAssertionData	true	"Credential assertion request"
+//	@Failure		401
+//	@Failure		429	"Too many failed sign-ins"
 //	@Router			/fido/signin [post]
 func (s *FidoService) Login(c *gin.Context) {
 	dbConn, ok := getDatabaseConnectionFromContext(c)
@@ -282,6 +294,10 @@ func (s *FidoService) Login(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	if isMaliciousRequest(c, email) {
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
 	user, err := db.GetUser(dbConn, email)
 	if err != nil {
 		handleInternalError(c, err, "Failed to get user")
@@ -292,6 +308,7 @@ func (s *FidoService) Login(c *gin.Context) {
 			"User not found",
 			slog.String("email", email),
 		)
+		recordFailedSignIn(c, email)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -318,9 +335,12 @@ func (s *FidoService) Login(c *gin.Context) {
 			slog.String("error", err.Error()),
 			slog.String("credential", fmt.Sprintf("%#v", credential)),
 		)
+		recordFailedSignIn(c, email)
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+
+	recordSuccessfulSignIn(c, email)
 
 	if err := setAuthenticationToSession(c, true); err != nil {
 		handleInternalError(c, err, "Unable to save cookie session")

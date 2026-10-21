@@ -240,7 +240,14 @@ const docTemplate = `{
                         }
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
             }
         },
         "/fido/signin/challenge": {
@@ -253,7 +260,14 @@ const docTemplate = `{
                     "user"
                 ],
                 "summary": "Serves a challenge for starting a login dance",
-                "responses": {}
+                "responses": {
+                    "401": {
+                        "description": "Invalid email or password"
+                    },
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
             }
         },
         "/signin": {
@@ -277,7 +291,11 @@ const docTemplate = `{
                         "required": true
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
             }
         },
         "/signin/challenge": {
@@ -301,7 +319,14 @@ const docTemplate = `{
                         "required": true
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "401": {
+                        "description": "Invalid email or password"
+                    },
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
             }
         },
         "/signout": {

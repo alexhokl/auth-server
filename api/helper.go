@@ -19,9 +19,33 @@ const queryParamRedirectURL = "redirect_uri"
 // send emails to a local server.
 var newMailClient = resend.NewClient
 
-func isMaliciousRequest(c *gin.Context) error {
-	// TODO: Implement
-	return nil
+// isMaliciousRequest returns true if the email address or the client IP
+// address of the request has too many failed sign-ins. The request is
+// allowed when the failed sign-ins cannot be checked, so that an outage of
+// Redis does not stop every user from signing in.
+func isMaliciousRequest(c *gin.Context, email string) bool {
+	throttle, ok := getSignInThrottleFromContext(c)
+	if !ok {
+		return false
+	}
+	ip := c.ClientIP()
+	blocked, err := throttle.isBlocked(c.Request.Context(), email, ip)
+	if err != nil {
+		slog.Error(
+			"Unable to check failed sign-ins",
+			slog.String("error", err.Error()),
+			slog.String("email", email),
+		)
+		return false
+	}
+	if blocked {
+		slog.Warn(
+			"Too many failed sign-ins",
+			slog.String("email", email),
+			slog.String("ip", ip),
+		)
+	}
+	return blocked
 }
 
 // isSafeRedirectURL returns true if redirectURL is empty or a path on this

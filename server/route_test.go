@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alexhokl/auth-server/server"
@@ -162,6 +163,17 @@ func TestSwaggerJson(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestGetRouter_InvalidTrustedProxy_ReturnsError(t *testing.T) {
+	mockDB, _, _ := sqlmock.New()
+	dialector := database.GetDatabaseDialectorFromConnection(mockDB)
+
+	_, err := server.GetRouter(dialector, nil, nil, nil, nil, server.RouterConfig{
+		TrustedProxies: []string{"not-an-ip"},
+	})
+
+	assert.Error(t, err)
+}
+
 func getRouter() (*gin.Engine, sqlmock.Sqlmock) {
 	return getRouterWithOIDC(false)
 }
@@ -176,12 +188,16 @@ func getRouterWithOIDC(enableOIDC bool) (*gin.Engine, sqlmock.Sqlmock) {
 		nil,
 		nil,
 		server.RouterConfig{
-			EnableFrontendEndpoints: true,
-			EnableOIDC:              enableOIDC,
-			ExpirationPeriod:        3600,
-			Domain:                  "test.com",
-			SessionCookieName:       "auth-server",
-			KeyID:                   "test-key-id",
+			EnableFrontendEndpoints:   true,
+			EnableOIDC:                enableOIDC,
+			ExpirationPeriod:          3600,
+			Domain:                    "test.com",
+			SessionCookieName:         "auth-server",
+			KeyID:                     "test-key-id",
+			TrustedProxies:            []string{"127.0.0.1"},
+			SignInMaxFailuresPerEmail: 5,
+			SignInMaxFailuresPerIP:    20,
+			SignInFailureWindow:       time.Minute,
 			Mail: server.MailConfig{
 				From:                   "user@test.com",
 				FromName:               "Test User",

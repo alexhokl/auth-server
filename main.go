@@ -166,19 +166,24 @@ func main() {
 		ecdsaPrivateKey,
 		fidoService,
 		authserver.RouterConfig{
-			RedisHost:                redisServer,
-			RedisPassword:            redisPassword,
-			RedisTokenDatabaseName:   viper.GetString("redis_token_db"),
-			RedisSessionDatabaseName: viper.GetString("redis_session_db"),
-			EnforcePKCE:              viper.GetBool("enforce_pkce"),
-			EnableFrontendEndpoints:  viper.GetBool("frontend_endpoints"),
-			EnableOIDC:               viper.GetBool("enable_oidc"),
-			ExpirationPeriod:         viper.GetInt64("expiration_period"),
-			Domain:                   viper.GetString("domain"),
-			SessionCookieName:        viper.GetString("session_cookie_name"),
-			KeyID:                    viper.GetString("key_id"),
-			SignUpRedirect:           viper.GetString("signup_redirect"),
-			ChangePasswordRedirect:   viper.GetString("change_password_redirect"),
+			RedisHost:                  redisServer,
+			RedisPassword:              redisPassword,
+			RedisTokenDatabaseName:     viper.GetString("redis_token_db"),
+			RedisSessionDatabaseName:   viper.GetString("redis_session_db"),
+			RedisRateLimitDatabaseName: viper.GetString("redis_rate_limit_db"),
+			TrustedProxies:             viper.GetStringSlice("trusted_proxies"),
+			SignInMaxFailuresPerEmail:  viper.GetInt("signin_max_failures_per_email"),
+			SignInMaxFailuresPerIP:     viper.GetInt("signin_max_failures_per_ip"),
+			SignInFailureWindow:        viper.GetDuration("signin_failure_window"),
+			EnforcePKCE:                viper.GetBool("enforce_pkce"),
+			EnableFrontendEndpoints:    viper.GetBool("frontend_endpoints"),
+			EnableOIDC:                 viper.GetBool("enable_oidc"),
+			ExpirationPeriod:           viper.GetInt64("expiration_period"),
+			Domain:                     viper.GetString("domain"),
+			SessionCookieName:          viper.GetString("session_cookie_name"),
+			KeyID:                      viper.GetString("key_id"),
+			SignUpRedirect:             viper.GetString("signup_redirect"),
+			ChangePasswordRedirect:     viper.GetString("change_password_redirect"),
 			Mail: authserver.MailConfig{
 				ResendAPIKey:           viper.GetString("resend_api_key"),
 				From:                   viper.GetString("mail_from"),
@@ -230,6 +235,11 @@ func setDefaultSettings() {
 	viper.SetDefault("enforce_pkce", true)
 	viper.SetDefault("signup_redirect", api.DefaultSignUpRedirect)
 	viper.SetDefault("change_password_redirect", api.DefaultChangePasswordRedirect)
+	viper.SetDefault("redis_rate_limit_db", "auth-rate-limit")
+	viper.SetDefault("trusted_proxies", []string{"127.0.0.1", "::1"})
+	viper.SetDefault("signin_max_failures_per_email", 5)
+	viper.SetDefault("signin_max_failures_per_ip", 20)
+	viper.SetDefault("signin_failure_window", 15*time.Minute)
 }
 
 func getFidoService(domain string, displayName string, isDebug bool) (*api.FidoService, error) {

@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/alexhokl/auth-server/api"
 	"github.com/alexhokl/auth-server/docs"
@@ -41,16 +42,28 @@ type RouterConfig struct {
 	RedisPassword            string
 	RedisTokenDatabaseName   string
 	RedisSessionDatabaseName string
-	EnforcePKCE              bool
-	EnableFrontendEndpoints  bool
-	EnableOIDC               bool
-	ExpirationPeriod         int64
-	Domain                   string
-	SessionCookieName        string
-	KeyID                    string
-	SignUpRedirect           string
-	ChangePasswordRedirect   string
-	Mail                     MailConfig
+	// RedisRateLimitDatabaseName is the key prefix of counters of failed
+	// sign-ins
+	RedisRateLimitDatabaseName string
+	// TrustedProxies are the addresses (or CIDRs) of reverse proxies whose
+	// X-Forwarded-For header is trusted to tell the IP address of a client
+	TrustedProxies []string
+	// SignInMaxFailuresPerEmail and SignInMaxFailuresPerIP are the numbers of
+	// failed sign-ins within SignInFailureWindow after which sign-ins are
+	// refused; zero disables a limit
+	SignInMaxFailuresPerEmail int
+	SignInMaxFailuresPerIP    int
+	SignInFailureWindow       time.Duration
+	EnforcePKCE               bool
+	EnableFrontendEndpoints   bool
+	EnableOIDC                bool
+	ExpirationPeriod          int64
+	Domain                    string
+	SessionCookieName         string
+	KeyID                     string
+	SignUpRedirect            string
+	ChangePasswordRedirect    string
+	Mail                      MailConfig
 }
 
 func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, idTokenSigner api.IDTokenSigner, privateKey *ecdsa.PrivateKey, fidoService *api.FidoService, cfg RouterConfig) (*gin.Engine, error) {
@@ -71,7 +84,19 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 		cfg.Mail.PasswordResetSubject,
 	)
 
+	signInThrottle := api.WithSignInThrottle(api.NewSignInThrottle(
+		cfg.RedisHost,
+		cfg.RedisPassword,
+		cfg.RedisRateLimitDatabaseName,
+		cfg.SignInMaxFailuresPerEmail,
+		cfg.SignInMaxFailuresPerIP,
+		cfg.SignInFailureWindow,
+	))
+
 	r := gin.New()
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
@@ -83,8 +108,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 	docs.SwaggerInfo.BasePath = "/"
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
-	r.POST("/signin", api.SignIn)
-	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), api.SignInPasswordChallenge)
+	r.POST("/signin", signInThrottle, api.SignIn)
+	r.POST("/signin/challenge", api.WithDatabaseConnection(dialector), signInThrottle, api.SignInPasswordChallenge)
 	if cfg.EnableOIDC {
 		r.GET(
 			fmt.Sprintf("/:action/:oidc_name/%s", api.OIDC_START_ENDPOINT),
@@ -146,8 +171,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 
 	fidoGroup := r.Group("/fido")
 	fidoGroup.Use(api.WithDatabaseConnection(dialector))
-	fidoGroup.POST("/signin/challenge", fidoService.LoginChallenge)
-	fidoGroup.POST("/signin", fidoService.Login)
+	fidoGroup.POST("/signin/challenge", signInThrottle, fidoService.LoginChallenge)
+	fidoGroup.POST("/signin", signInThrottle, fidoService.Login)
 	fidoRegister := fidoGroup.Group("/register")
 	fidoRegister.Use(api.RequiredAuthenticated())
 	fidoRegister.POST("challenge", fidoService.RegisterChallenge)

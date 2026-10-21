@@ -103,16 +103,6 @@ func TestGetResetPasswordMailContent(t *testing.T) {
 	assert.Contains(t, content, "<a href=")
 }
 
-// isMaliciousRequest Tests (currently returns nil - placeholder test)
-
-func TestIsMaliciousRequest_ReturnsNil(t *testing.T) {
-	// This is a placeholder test since the function is not implemented yet
-	// When implemented, this should be updated with proper test cases
-	err := isMaliciousRequest(nil)
-
-	assert.Nil(t, err)
-}
-
 // Error Handling Tests
 
 func TestIsSafeRedirectURL(t *testing.T) {

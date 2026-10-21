@@ -113,6 +113,7 @@ func Confirm(c *gin.Context) {
 //	@Accept		x-www-form-urlencoded
 //	@Produce	json
 //	@Param		body	formData	UserSignInRequest	true	"Sign in request"
+//	@Failure	429	"Too many failed sign-ins"
 //	@Router		/signin [post]
 func SignIn(c *gin.Context) {
 	var formValues UserSignInRequest
@@ -128,7 +129,7 @@ func SignIn(c *gin.Context) {
 		return
 	}
 
-	if err := isMaliciousRequest(c); err != nil {
+	if isMaliciousRequest(c, formValues.Email) {
 		c.AbortWithStatus(http.StatusTooManyRequests)
 		return
 	}
@@ -153,6 +154,8 @@ func SignIn(c *gin.Context) {
 //	@Accept		x-www-form-urlencoded
 //	@Produce	json
 //	@Param		body	formData	UserSignInWithPasswordRequest	true	"Sign in request"
+//	@Failure	401	"Invalid email or password"
+//	@Failure	429	"Too many failed sign-ins"
 //	@Router		/signin/challenge [post]
 func SignInPasswordChallenge(c *gin.Context) {
 	var formValues UserSignInWithPasswordRequest
@@ -174,6 +177,11 @@ func SignInPasswordChallenge(c *gin.Context) {
 		return
 	}
 
+	if isMaliciousRequest(c, email) {
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
+
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
 		handleInternalError(c, nil, "Missing configuration for database")
@@ -190,6 +198,7 @@ func SignInPasswordChallenge(c *gin.Context) {
 			"Unable to find user",
 			slog.String("error", err.Error()),
 		)
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -198,12 +207,14 @@ func SignInPasswordChallenge(c *gin.Context) {
 			"User not found",
 			slog.String("email", email),
 		)
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
 	if !user.IsEnabled {
 		logger.Warn("User is disabled")
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -211,17 +222,21 @@ func SignInPasswordChallenge(c *gin.Context) {
 	matches, needsRehash, err := verifyPassword(user.PasswordHash, formValues.Password)
 	if err != nil {
 		logger.Warn("Unable to verify password", slog.String("error", err.Error()))
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 	if !matches {
 		logger.Warn("Invalid password")
+		recordFailedSignIn(c, email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 	if needsRehash {
 		upgradePasswordHash(dbConn, user.Email, formValues.Password)
 	}
+
+	recordSuccessfulSignIn(c, email)
 
 	if err := setAuthenticationToSession(c, true); err != nil {
 		handleInternalError(c, err, "Unable to save cookie session")
