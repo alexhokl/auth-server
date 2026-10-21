@@ -132,6 +132,9 @@ func GetOpenIDConfiguration(c *gin.Context) {
 		ClaimsSupported:                   getClaimsSupported(),
 		TokenEndpointAuthMethodsSupported: getTokenEndpointSupportedAuthMethods(),
 		CodeChallengeMethodsSupported:     getCodeChallengeMethodsSupported(),
+
+		IntrospectionEndpoint:                     fmt.Sprintf("%s/introspect", issuer),
+		IntrospectionEndpointAuthMethodsSupported: getTokenEndpointSupportedAuthMethods(),
 	}
 	c.JSON(http.StatusOK, oauthConfig)
 }

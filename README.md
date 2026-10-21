@@ -25,6 +25,10 @@ It is based on the following libraries.
 - An unexpected internal error is returned to a client as `server_error` with
   the standard description, without internal details; it is logged instead
 - Tokens are stored in Redis; clients, scopes and users are stored in PostgreSQL
+- Token introspection ([RFC 7662](https://www.rfc-editor.org/rfc/rfc7662)) at
+  `POST /introspect` for access and refresh tokens, for confidential clients
+  authenticated with `client_secret_basic` or `client_secret_post` (see
+  [Introspecting tokens](#introspecting-tokens))
 
 ### OpenID Connect
 
@@ -119,7 +123,7 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 92.9% |
+| `api` | 93.2% |
 | `db` | 94.1% |
 | `jwthelper` | 97.7% |
 | `server` | 99.2% |
@@ -130,9 +134,6 @@ It is based on the following libraries.
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)
-- Access tokens are self-contained JWTs and there is no introspection
-  endpoint, so a resource server verifying them with the JSON Web Key Set
-  accepts one issued before its user was disabled or deleted until it expires
 
 ## Setting up server
 
@@ -166,10 +167,36 @@ token or refresh token is rejected if its user no longer exists, is disabled,
 or was disabled or created after it was issued. Nothing is deleted from Redis;
 the check is made whenever a session is used (`RequiredAuthenticated` and
 `RequiredAdminAccess`, after which the session is signed out) and whenever a
-code or token is looked up (`/token`, `/userinfo`).
+code or token is looked up (`/token`, `/userinfo`, `/introspect`).
 
 A session signed in before this check was introduced has no time of sign-in
 and is rejected, so its user has to sign in again.
+
+## Introspecting tokens
+
+`POST /introspect` tells a resource server whether a token is still active
+([RFC 7662](https://www.rfc-editor.org/rfc/rfc7662)). The caller authenticates
+as a confidential client, with HTTP basic authentication or `client_id` and
+`client_secret` in the form; any such client can introspect a token issued to
+any client. Form field `token` is the access or refresh token, and optional
+`token_type_hint` (`access_token` or `refresh_token`) is the type tried first.
+
+```sh
+curl -d token=<access token> --user <client ID>:<client secret> https://<AUTH_DOMAIN>/introspect
+```
+
+An active token is described by `active`, `scope`, `client_id`, `username`
+and `sub` (the email address of the user; absent for the client credentials
+grant), `token_type` (`Bearer`, or `refresh_token`), `iat`, `exp`, `aud` and
+`iss`. A token which is unknown, has expired or has been revoked (see
+[Revoking sessions and tokens](#revoking-sessions-and-tokens)) is described as
+`{"active": false}`, as is any token when Redis or the database cannot be
+reached. A client which fails to authenticate, or is public, gets
+`401 invalid_client`.
+
+Access tokens are also self-contained JWTs. A resource server which verifies
+them with the JSON Web Key Set alone accepts a revoked token until it expires,
+so one which has to honour revocation should introspect them.
 
 ## Throttling failed sign-ins
 
@@ -452,6 +479,8 @@ JavaScript implementation in assets/ handles:
   Metadata](https://www.rfc-editor.org/rfc/rfc8414.html)
 - [RFC 7636 Proof Key for Code Exchange by OAuth Public
   Clients](https://www.rfc-editor.org/rfc/rfc7636)
+- [RFC 7662 OAuth 2.0 Token
+  Introspection](https://www.rfc-editor.org/rfc/rfc7662)
 - [RFC 8693 OAuth 2.0 Token
   Exchange](https://www.rfc-editor.org/rfc/rfc8693.html)
   * An explanation from Scott Brady in [Delegation Patterns for OAuth 2.0 using

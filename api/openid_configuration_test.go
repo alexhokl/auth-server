@@ -64,6 +64,7 @@ func TestGetOpenIDConfiguration_EndpointsAreDerivedFromIssuer(t *testing.T) {
 		config.JwksUri,
 	)
 	assert.Equal(t, "http://auth.example.com/userinfo", config.UserinfoEndpoint)
+	assert.Equal(t, "http://auth.example.com/introspect", config.IntrospectionEndpoint)
 }
 
 func TestGetOpenIDConfiguration_ContainsSupportedValues(t *testing.T) {
@@ -76,6 +77,11 @@ func TestGetOpenIDConfiguration_ContainsSupportedValues(t *testing.T) {
 		t,
 		getTokenEndpointSupportedAuthMethods(),
 		config.TokenEndpointAuthMethodsSupported,
+	)
+	assert.Equal(
+		t,
+		getTokenEndpointSupportedAuthMethods(),
+		config.IntrospectionEndpointAuthMethodsSupported,
 	)
 	assert.Equal(
 		t,

@@ -150,6 +150,21 @@ type UserInfo struct {
 	Name          string `json:"name,omitempty"`
 }
 
+// IntrospectionResponse describes a token returned by the introspection
+// endpoint (RFC 7662 section 2.2); an inactive token has only Active.
+type IntrospectionResponse struct {
+	Active    bool   `json:"active"`
+	Scope     string `json:"scope,omitempty"`
+	ClientID  string `json:"client_id,omitempty"`
+	Username  string `json:"username,omitempty"`
+	TokenType string `json:"token_type,omitempty"`
+	ExpiresAt int64  `json:"exp,omitempty"`
+	IssuedAt  int64  `json:"iat,omitempty"`
+	Subject   string `json:"sub,omitempty"`
+	Audience  string `json:"aud,omitempty"`
+	Issuer    string `json:"iss,omitempty"`
+}
+
 type WebFingerLinks struct {
 	Rel  string `json:"rel,omitempty"`
 	Type string `json:"type,omitempty"`

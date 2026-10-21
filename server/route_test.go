@@ -3,6 +3,7 @@ package server_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,17 @@ func TestUserInfoWithoutAccessToken(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.Equal(t, `Bearer error="invalid_token"`, w.Header().Get("WWW-Authenticate"))
 	}
+}
+
+func TestIntrospectionWithoutClientAuthentication(t *testing.T) {
+	router, _ := getRouter()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/introspect", strings.NewReader("token=abc"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 }
 
 func TestOIDCRoutes(t *testing.T) {

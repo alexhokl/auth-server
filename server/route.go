@@ -166,6 +166,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(cfg.KeyID, privateKey))
 	r.GET("/userinfo", api.WithDatabaseConnection(dialector), api.GetUserInfoHandler(oauthService))
 	r.POST("/userinfo", api.WithDatabaseConnection(dialector), api.GetUserInfoHandler(oauthService))
+	r.POST("/introspect", api.GetIntrospectionHandler(oauthService))
 	r.GET("/.well-known/webfinger", api.GetWebFingerConfiguration)
 	r.GET("/.well-known/change-password", api.RedirectToChangePasswordUI)
 

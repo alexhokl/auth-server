@@ -270,6 +270,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/introspect": {
+            "post": {
+                "description": "Tells whether an access token or a refresh token is active; a token is inactive if it is unknown, has expired, or was issued to a user who has since been disabled or deleted. The caller authenticates as a confidential client with client_secret_basic or client_secret_post.",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "OAuth 2.0 token introspection endpoint (RFC 7662)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Token to introspect",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "access_token or refresh_token",
+                        "name": "token_type_hint",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.IntrospectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
         "/signin": {
             "post": {
                 "consumes": [
@@ -1050,6 +1094,41 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "api.IntrospectionResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "aud": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "exp": {
+                    "type": "integer"
+                },
+                "iat": {
+                    "type": "integer"
+                },
+                "iss": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "sub": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

@@ -176,6 +176,19 @@ tasks:
     cmds:
       - curl -s -d grant_type=authorization_code -d code={{.AUTHORIZATION_CODE}} -d redirect_uri={{.REDIRECT_URI}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} {{.TOKEN_ENDPOINT}}
 
+  test-introspect:
+    desc: 'test introspection endpoint with cURL (usage: task test-introspect -- <token>)'
+    silent: false
+    preconditions:
+      - sh: '[ ! -z "$(which curl)" ]'
+        msg: curl is not installed
+      - sh: '[ ! -z "$(echo $AUTH_DOMAIN)" ]'
+        msg: environnment variable AUTH_DOMAIN is not configured
+      - sh: '[ ! -z "{{.CLI_ARGS}}" ]'
+        msg: a token is required as in task test-introspect -- <token>
+    cmds:
+      - curl -s -d token={{.CLI_ARGS}} --user {{.CLIENT_ID}}:{{.LOGIN_PASSWORD}} https://$AUTH_DOMAIN/introspect
+
   test-step:
     desc: test authorization and token endpoint with step
     silent: false
