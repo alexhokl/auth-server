@@ -22,6 +22,8 @@ It is based on the following libraries.
   /token` as GET access requests are disabled
 - PKCE, enforced by default and controlled by `AUTH_ENFORCE_PKCE`
 - Access tokens are ECDSA-signed JWTs (`ES256`) with a configurable key ID
+- An unexpected internal error is returned to a client as `server_error` with
+  the standard description, without internal details; it is logged instead
 - Tokens are stored in Redis; clients, scopes and users are stored in PostgreSQL
 
 ### OpenID Connect
@@ -111,7 +113,7 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 92.5% |
+| `api` | 92.6% |
 | `db` | 93.8% |
 | `jwthelper` | 97.7% |
 | `server` | 99.1% |
@@ -121,8 +123,6 @@ It is based on the following libraries.
 
 - Detection of malicious requests (`isMaliciousRequest` in `api/helper.go`) is
   a no-op
-- The OAuth response error handler (`HandleErrorResponse` in
-  `api/authorization.go`) is a no-op and is not registered
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)

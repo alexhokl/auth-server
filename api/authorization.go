@@ -86,8 +86,23 @@ func GetPreRedirectErrorHandler(srv *server.Server) server.PreRedirectErrorHandl
 	}
 }
 
-func HandleErrorResponse(re *errors.Response) {
-	// TODO: implement
+// HandleErrorResponse replaces an internal error (one without a client error
+// status) with server_error, so that internal details are not disclosed to
+// clients (RFC 6749 sections 4.1.2.1 and 5.2). The original error has been
+// logged by HandleInternalError.
+func HandleErrorResponse(_ context.Context, re *errors.Response) {
+	if re.Error == nil || re.StatusCode >= http.StatusInternalServerError {
+		re.Error = errors.ErrServerError
+		re.Description = errors.Descriptions[errors.ErrServerError]
+		re.StatusCode = errors.StatusCodes[errors.ErrServerError]
+		return
+	}
+	slog.Info(
+		"OAuth error response",
+		slog.String("error", re.Error.Error()),
+		slog.String("description", re.Description),
+		slog.Int("status_code", re.StatusCode),
+	)
 }
 
 // GetOpenIDConfiguration OpenID configuration endpoint

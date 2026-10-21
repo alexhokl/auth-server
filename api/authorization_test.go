@@ -63,6 +63,55 @@ func TestHandleInternalError_UnknownErrorIsInternalServerError(t *testing.T) {
 	assert.Equal(t, err.Error(), res.Description)
 }
 
+// HandleErrorResponse Tests
+
+func TestHandleErrorResponse_StandardErrorUnchanged(t *testing.T) {
+	err := oauthErrors.ErrInvalidGrant
+	re := &oauthErrors.Response{
+		Error:       err,
+		Description: oauthErrors.Descriptions[err],
+		StatusCode:  oauthErrors.StatusCodes[err],
+	}
+
+	HandleErrorResponse(context.Background(), re)
+
+	assert.Equal(t, err, re.Error)
+	assert.Equal(t, oauthErrors.Descriptions[err], re.Description)
+	assert.Equal(t, oauthErrors.StatusCodes[err], re.StatusCode)
+}
+
+// Errors mapped to bad requests by HandleInternalError are kept.
+func TestHandleErrorResponse_ClientErrorUnchanged(t *testing.T) {
+	err := oauthErrors.ErrInvalidCodeChallenge
+	re := HandleInternalError(context.Background(), err)
+
+	HandleErrorResponse(context.Background(), re)
+
+	assert.Equal(t, err, re.Error)
+	assert.Equal(t, err.Error(), re.Description)
+	assert.Equal(t, http.StatusBadRequest, re.StatusCode)
+}
+
+func TestHandleErrorResponse_InternalErrorSanitised(t *testing.T) {
+	re := HandleInternalError(context.Background(), errors.New("pq: connection refused"))
+
+	HandleErrorResponse(context.Background(), re)
+
+	assert.Equal(t, oauthErrors.ErrServerError, re.Error)
+	assert.Equal(t, oauthErrors.Descriptions[oauthErrors.ErrServerError], re.Description)
+	assert.Equal(t, http.StatusInternalServerError, re.StatusCode)
+}
+
+func TestHandleErrorResponse_NilErrorSanitised(t *testing.T) {
+	re := &oauthErrors.Response{}
+
+	HandleErrorResponse(context.Background(), re)
+
+	assert.Equal(t, oauthErrors.ErrServerError, re.Error)
+	assert.Equal(t, oauthErrors.Descriptions[oauthErrors.ErrServerError], re.Description)
+	assert.Equal(t, http.StatusInternalServerError, re.StatusCode)
+}
+
 // OpenID configuration metadata Tests
 
 func TestGetResponseTypes(t *testing.T) {
@@ -382,6 +431,7 @@ func authzTestOAuthServer(t *testing.T) *server.Server {
 	)
 	srv.SetInternalErrorHandler(HandleInternalError)
 	srv.SetPreRedirectErrorHandler(GetPreRedirectErrorHandler(srv))
+	srv.SetResponseErrorHandler(HandleErrorResponse)
 	srv.SetUserAuthorizationHandler(GetUserIdInAuthorizationRequest)
 	srv.SetClientInfoHandler(HandleClientInfoInTokenRequest)
 	return srv
@@ -628,6 +678,27 @@ func TestGetTokenRequestHandler_ClientCredentials_ReturnsOK(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &token))
 	assert.NotEmpty(t, token["access_token"])
 	assert.Equal(t, "Bearer", token["token_type"])
+}
+
+func TestGetTokenRequestHandler_InternalError_ReturnsServerError(t *testing.T) {
+	srv := authzTestOAuthServer(t)
+	srv.SetClientScopeHandler(func(_ *oauth2.TokenGenerateRequest) (bool, error) {
+		return false, errors.New("pq: connection refused")
+	})
+	router := authzTestRouter(t, srv)
+
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	req := authzTokenRequest(http.MethodPost, form)
+	req.SetBasicAuth(authzTestClientID, authzTestClientSecret)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]interface{}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, oauthErrors.ErrServerError.Error(), body["error"])
+	assert.NotContains(t, w.Body.String(), "connection refused")
 }
 
 func TestGetTokenRequestHandler_ResponseFailure_ReturnsBadRequest(t *testing.T) {
