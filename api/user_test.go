@@ -787,6 +787,20 @@ func TestSignUp_Success_ReturnsFound(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestSignUp_ConfiguredRedirect_ReturnsFound(t *testing.T) {
+	useTestMailServer(t, http.StatusOK)
+	router, mock := userGetTestRouter()
+	router.POST("/signup", WithRedirects("https://app.example.com/welcome", ""), SignUp)
+	userExpectCreateUser(mock, userTestEmail, nil)
+	userExpectCreateConfirmation(mock, userTestEmail, db.ConfirmationPurposeSignUp, nil)
+
+	w := userServe(router, userSignUpRequest())
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "https://app.example.com/welcome", w.Header().Get("Location"))
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 // SignIn Tests
 
 func TestSignIn_Success_ReturnsFound(t *testing.T) {
@@ -1112,6 +1126,20 @@ func TestChangePassword_Success_ReturnsFound(t *testing.T) {
 		assert.Equal(t, []string{userTestEmail}, requests[0].To)
 		assert.Equal(t, mailTestPasswordChangedSubject, requests[0].Subject)
 	}
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestChangePassword_ConfiguredRedirect_ReturnsFound(t *testing.T) {
+	useTestMailServer(t, http.StatusOK)
+	router, mock := userGetTestRouter()
+	router.POST("/changepassword", WithRedirects("", "https://app.example.com/password-changed"), ChangePassword)
+	userExpectGetUser(mock, userTestEmail, userTestPasswordHash, true)
+	userExpectChangePassword(mock, userTestEmail, nil)
+
+	w := serveInSession(t, router, authenticatedSession(userTestEmail), userChangePasswordRequest(userTestPassword))
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "https://app.example.com/password-changed", w.Header().Get("Location"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -48,6 +48,8 @@ type RouterConfig struct {
 	Domain                   string
 	SessionCookieName        string
 	KeyID                    string
+	SignUpRedirect           string
+	ChangePasswordRedirect   string
 	Mail                     MailConfig
 }
 
@@ -59,6 +61,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 	setupSessionManager(cfg.EnableOIDC, cfg.SessionCookieName, cfg.RedisHost, cfg.RedisPassword, cfg.RedisSessionDatabaseName)
 	oauthService := getOAuthService(dbConn, tokenGenerator, idTokenSigner, cfg.RedisHost, cfg.RedisPassword, cfg.RedisTokenDatabaseName, cfg.EnforcePKCE)
 
+	withRedirects := api.WithRedirects(cfg.SignUpRedirect, cfg.ChangePasswordRedirect)
 	withMail := api.WithMail(
 		cfg.Mail.ResendAPIKey,
 		cfg.Mail.From,
@@ -106,6 +109,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 		api.WithExpirationPeriod(cfg.ExpirationPeriod),
 		withMail,
 		api.WithDomain(cfg.Domain),
+		withRedirects,
 		api.SignUp,
 	)
 	r.POST("/token", gin.WrapF(api.GetTokenRequestHandler(oauthService)))
@@ -115,6 +119,7 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 		api.WithDatabaseConnection(dialector),
 		withMail,
 		api.WithDomain(cfg.Domain),
+		withRedirects,
 		api.ChangePassword,
 	)
 	r.POST("/resetpassword",

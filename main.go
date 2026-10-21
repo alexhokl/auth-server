@@ -177,6 +177,8 @@ func main() {
 			Domain:                   viper.GetString("domain"),
 			SessionCookieName:        viper.GetString("session_cookie_name"),
 			KeyID:                    viper.GetString("key_id"),
+			SignUpRedirect:           viper.GetString("signup_redirect"),
+			ChangePasswordRedirect:   viper.GetString("change_password_redirect"),
 			Mail: authserver.MailConfig{
 				ResendAPIKey:           viper.GetString("resend_api_key"),
 				From:                   viper.GetString("mail_from"),
@@ -226,6 +228,8 @@ func setDefaultSettings() {
 	viper.SetDefault("port", defaultPort)
 	viper.SetDefault("shutdown_timeout", 5*time.Second)
 	viper.SetDefault("enforce_pkce", true)
+	viper.SetDefault("signup_redirect", api.DefaultSignUpRedirect)
+	viper.SetDefault("change_password_redirect", api.DefaultChangePasswordRedirect)
 }
 
 func getFidoService(domain string, displayName string, isDebug bool) (*api.FidoService, error) {

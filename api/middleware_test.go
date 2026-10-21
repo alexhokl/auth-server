@@ -216,6 +216,41 @@ func TestWithDomain_SetsDomainInContext(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+// WithRedirects Tests
+
+func TestWithRedirects_SetsValuesInContext(t *testing.T) {
+	router := gin.New()
+	router.Use(WithRedirects("/welcome", "/password-changed"))
+	router.GET("/test", func(c *gin.Context) {
+		if c.GetString("signup_redirect") != "/welcome" ||
+			c.GetString("change_password_redirect") != "/password-changed" {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetRedirectFromContext_EmptyReturnsDefault(t *testing.T) {
+	router := gin.New()
+	router.Use(WithRedirects("", ""))
+	router.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, getRedirectFromContext(c, "signup_redirect", DefaultSignUpRedirect))
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, DefaultSignUpRedirect, w.Body.String())
+}
+
 // WithOIDC Tests
 
 func TestWithOIDC_EnabledSetsTrue(t *testing.T) {

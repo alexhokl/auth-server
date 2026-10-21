@@ -70,6 +70,11 @@ It is based on the following libraries.
   used once, and only for the purpose (sign-up or password reset) they were
   issued for; issuing a new one replaces the previous one of the user
 - Administrators seeded from a JSON file on the first start of an empty database
+- Redirect targets after sign-up and password change, set with
+  `AUTH_SIGNUP_REDIRECT` (default `/signup_continue`) and
+  `AUTH_CHANGE_PASSWORD_REDIRECT` (default `/changepassword_completed`); the
+  default pages are served only with `AUTH_FRONTEND_ENDPOINTS`, so a deployment
+  with its own front end can point them elsewhere, including at absolute URLs
 
 ### Administration
 
@@ -118,8 +123,6 @@ It is based on the following libraries.
   a no-op
 - The OAuth response error handler (`HandleErrorResponse` in
   `api/authorization.go`) is a no-op and is not registered
-- Redirects after sign-up (`/signup_continue`) and password change
-  (`/changepassword_completed`) are hard-coded
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)

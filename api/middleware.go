@@ -82,6 +82,29 @@ func WithDomain(domain string) gin.HandlerFunc {
 	}
 }
 
+// Default redirect targets after a successful sign-up and password change.
+const (
+	DefaultSignUpRedirect         = "/signup_continue"
+	DefaultChangePasswordRedirect = "/changepassword_completed"
+)
+
+func WithRedirects(signUpRedirect, changePasswordRedirect string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("signup_redirect", signUpRedirect)
+		c.Set("change_password_redirect", changePasswordRedirect)
+		c.Next()
+	}
+}
+
+// getRedirectFromContext returns the redirect target stored under key, or
+// defaultRedirect when it is not set.
+func getRedirectFromContext(c *gin.Context, key string, defaultRedirect string) string {
+	if redirect := c.GetString(key); redirect != "" {
+		return redirect
+	}
+	return defaultRedirect
+}
+
 func WithOIDC(enable bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("enable_oidc", enable)

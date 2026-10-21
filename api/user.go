@@ -66,8 +66,7 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	// TODO: make this configurable
-	c.Redirect(http.StatusFound, "/signup_continue")
+	c.Redirect(http.StatusFound, getRedirectFromContext(c, "signup_redirect", DefaultSignUpRedirect))
 }
 
 func Confirm(c *gin.Context) {
@@ -634,8 +633,7 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: make this configurable
-	c.Redirect(http.StatusFound, "/changepassword_completed")
+	c.Redirect(http.StatusFound, getRedirectFromContext(c, "change_password_redirect", DefaultChangePasswordRedirect))
 }
 
 func ResetPassword(c *gin.Context) {
