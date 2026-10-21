@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alexhokl/helper/database"
@@ -463,6 +464,7 @@ func mwIsAdminHandler(c *gin.Context) {
 
 func TestIsAdmin_AuthenticatedWithAdminRole_ReturnsTrue(t *testing.T) {
 	router, mock := mwGetAdminRouter(mwIsAdminHandler)
+	expectActiveUser(mock, "admin@test.com", true, nil)
 	mwExpectHasRole(mock, "admin@test.com", "admin", 1)
 
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -474,6 +476,7 @@ func TestIsAdmin_AuthenticatedWithAdminRole_ReturnsTrue(t *testing.T) {
 
 func TestIsAdmin_AuthenticatedWithoutAdminRole_ReturnsFalse(t *testing.T) {
 	router, mock := mwGetAdminRouter(mwIsAdminHandler)
+	expectActiveUser(mock, "user@test.com", true, nil)
 	mwExpectHasRole(mock, "user@test.com", "admin", 0)
 
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -498,6 +501,7 @@ func TestRequiredAdminAccess_Admin_ReturnsOK(t *testing.T) {
 	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
+	expectActiveUser(mock, "admin@test.com", true, nil)
 	mwExpectHasRole(mock, "admin@test.com", "admin", 1)
 
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -511,6 +515,7 @@ func TestRequiredAdminAccess_NonAdmin_ReturnsForbidden(t *testing.T) {
 	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
+	expectActiveUser(mock, "user@test.com", true, nil)
 	mwExpectHasRole(mock, "user@test.com", "admin", 0)
 
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -534,6 +539,7 @@ func TestRequiredAdminAccess_DatabaseError_ReturnsInternalServerError(t *testing
 	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
+	expectActiveUser(mock, "admin@test.com", true, nil)
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "user_roles" WHERE user_email = $1 AND role_name = $2`)).
 		WithArgs("admin@test.com", "admin").
 		WillReturnError(errors.New("database error"))
@@ -548,15 +554,117 @@ func TestRequiredAdminAccess_DatabaseError_ReturnsInternalServerError(t *testing
 // RequiredAuthenticated Tests with a signed in user
 
 func TestRequiredAuthenticated_Authenticated_ReturnsOK(t *testing.T) {
-	router := gin.New()
-	router.GET("/protected", RequiredAuthenticated(), func(c *gin.Context) {
+	router, mock := mwGetAdminRouter(RequiredAuthenticated(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
+	expectActiveUser(mock, "user@test.com", true, nil)
 
-	req, _ := http.NewRequest(http.MethodGet, "/protected", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRequiredAuthenticated_InactiveUser_RedirectsToSignIn(t *testing.T) {
+	revokedAt := time.Now().Add(time.Minute)
+	tests := []struct {
+		name   string
+		expect func(mock sqlmock.Sqlmock)
+	}{
+		{"disabled", func(mock sqlmock.Sqlmock) { expectActiveUser(mock, "user@test.com", false, nil) }},
+		{"revoked", func(mock sqlmock.Sqlmock) { expectActiveUser(mock, "user@test.com", true, &revokedAt) }},
+		{"deleted", func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+				WithArgs("user@test.com", 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stillAuthenticated := true
+			router, mock := mwGetAdminRouter(RequiredAuthenticated(), func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+			router.GET("/check", func(c *gin.Context) {
+				stillAuthenticated = isAuthenticated(c)
+			})
+			tt.expect(mock)
+
+			req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+			w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+			assert.Equal(t, http.StatusFound, w.Code)
+			assert.Contains(t, w.Header().Get("Location"), "/signin")
+			assert.NoError(t, mock.ExpectationsWereMet())
+
+			// the session is signed out
+			check, _ := http.NewRequest(http.MethodGet, "/check", nil)
+			for _, cookie := range req.Cookies() {
+				check.AddCookie(cookie)
+			}
+			router.ServeHTTP(httptest.NewRecorder(), check)
+			assert.False(t, stillAuthenticated)
+		})
+	}
+}
+
+// A session authenticated before the time of authentication was recorded is
+// not trusted.
+func TestRequiredAuthenticated_WithoutAuthenticatedAt_RedirectsToSignIn(t *testing.T) {
+	router, mock := mwGetAdminRouter(RequiredAuthenticated(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, map[string]interface{}{
+		sessionEmailKey:           "user@test.com",
+		sessionIsAuthenticatedKey: true,
+	}, req)
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRequiredAuthenticated_DatabaseError_ReturnsInternalServerError(t *testing.T) {
+	router, mock := mwGetAdminRouter(RequiredAuthenticated(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("user@test.com", 1).
+		WillReturnError(errors.New("database error"))
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRequiredAuthenticated_NoDatabaseConnection_ReturnsInternalServerError(t *testing.T) {
+	router := gin.New()
+	router.GET("/test", RequiredAuthenticated(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("user@test.com"), req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// A disabled administrator keeps their role but loses admin access.
+func TestRequiredAdminAccess_DisabledAdmin_ReturnsForbidden(t *testing.T) {
+	router, mock := mwGetAdminRouter(RequiredAdminAccess(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	expectActiveUser(mock, "admin@test.com", false, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	w := serveInSession(t, router, authenticatedSession("admin@test.com"), req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 // WithDatabaseConnection Tests with the middleware itself

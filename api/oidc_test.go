@@ -767,7 +767,7 @@ func TestOIDCCallback_SignUpNewUser_ReturnsFound(t *testing.T) {
 	oidcExpectUserNotFound(mock, "new@test.com")
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users"`)).
-		WithArgs("new@test.com", sqlmock.AnyArg(), "", true).
+		WithArgs("new@test.com", sqlmock.AnyArg(), "", true, sqlmock.AnyArg(), nil).
 		WillReturnRows(sqlmock.NewRows([]string{"web_authn_user_id"}).AddRow("6f1c3b4e-7a52-4d8e-9a0f-2b3c4d5e6f70"))
 	mock.ExpectCommit()
 

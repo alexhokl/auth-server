@@ -53,7 +53,8 @@ func GetUser(db *gorm.DB, email string) (*User, error) {
 }
 
 // UpdateUser updates the display name and the enabled state of a user; a nil
-// value leaves the field unchanged.
+// value leaves the field unchanged. Disabling a user revokes their sessions and
+// tokens.
 func UpdateUser(db *gorm.DB, email string, displayName *string, isEnabled *bool) error {
 	updates := map[string]interface{}{}
 	if displayName != nil {
@@ -61,6 +62,9 @@ func UpdateUser(db *gorm.DB, email string, displayName *string, isEnabled *bool)
 	}
 	if isEnabled != nil {
 		updates["is_enabled"] = *isEnabled
+		if !*isEnabled {
+			updates["revoked_at"] = time.Now()
+		}
 	}
 	if len(updates) == 0 {
 		return nil
@@ -69,6 +73,30 @@ func UpdateUser(db *gorm.DB, email string, displayName *string, isEnabled *bool)
 		return dbResult.Error
 	}
 	return nil
+}
+
+// IsIssuedForActiveUser returns true if a session or a token issued to a user
+// at issuedAt is still valid; that is, the user exists, is enabled, and has not
+// been disabled or re-created since.
+func IsIssuedForActiveUser(db *gorm.DB, email string, issuedAt time.Time) (bool, error) {
+	var user User
+	dbResult := db.First(&user, "email = ?", email)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		return false, dbResult.Error
+	}
+	if !user.IsEnabled {
+		return false, nil
+	}
+	if user.CreatedAt != nil && issuedAt.Before(*user.CreatedAt) {
+		return false, nil
+	}
+	if user.RevokedAt != nil && !issuedAt.After(*user.RevokedAt) {
+		return false, nil
+	}
+	return true, nil
 }
 
 // DeleteUser deletes a user together with their credentials, roles and

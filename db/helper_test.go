@@ -144,7 +144,7 @@ func TestCreateUser_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users"`)).
-		WithArgs(user.Email, user.PasswordHash, user.DisplayName, user.IsEnabled).
+		WithArgs(user.Email, user.PasswordHash, user.DisplayName, user.IsEnabled, sqlmock.AnyArg(), nil).
 		WillReturnRows(sqlmock.NewRows([]string{"web_authn_user_id"}).AddRow(uuid.New()))
 	mock.ExpectCommit()
 
@@ -1881,8 +1881,8 @@ func TestUpdateUser_Success(t *testing.T) {
 	displayName := "Alexander"
 	isEnabled := false
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2 WHERE email = $3`)).
-		WithArgs(displayName, isEnabled, "alex@test.com").
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2,"revoked_at"=$3 WHERE email = $4`)).
+		WithArgs(displayName, isEnabled, sqlmock.AnyArg(), "alex@test.com").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -1914,6 +1914,89 @@ func TestUpdateUser_DatabaseError(t *testing.T) {
 	err := db.UpdateUser(dbConn, "alex@test.com", nil, &isEnabled)
 
 	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateUser_Enable_DoesNotRevoke(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	isEnabled := true
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "is_enabled"=$1 WHERE email = $2`)).
+		WithArgs(isEnabled, "alex@test.com").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateUser(dbConn, "alex@test.com", nil, &isEnabled)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func expectIssuedForActiveUser(mock sqlmock.Sqlmock, isEnabled bool, createdAt, revokedAt *time.Time) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"email", "is_enabled", "created_at", "revoked_at"}).
+			AddRow("alex@test.com", isEnabled, createdAt, revokedAt))
+}
+
+func TestIsIssuedForActiveUser(t *testing.T) {
+	issuedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	before := issuedAt.Add(-time.Minute)
+	after := issuedAt.Add(time.Minute)
+
+	tests := []struct {
+		name      string
+		isEnabled bool
+		createdAt *time.Time
+		revokedAt *time.Time
+		expected  bool
+	}{
+		{"active user", true, &before, nil, true},
+		{"user created before the column", true, nil, nil, true},
+		{"disabled user", false, &before, nil, false},
+		{"revoked before issued", true, &before, &before, true},
+		{"revoked after issued", true, &before, &after, false},
+		{"revoked when issued", true, &before, &issuedAt, false},
+		{"re-created after issued", true, &after, nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbConn, mock := getDBConnection()
+			expectIssuedForActiveUser(mock, tt.isEnabled, tt.createdAt, tt.revokedAt)
+
+			valid, err := db.IsIssuedForActiveUser(dbConn, "alex@test.com", issuedAt)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, valid)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestIsIssuedForActiveUser_NotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	valid, err := db.IsIssuedForActiveUser(dbConn, "alex@test.com", time.Now())
+
+	assert.NoError(t, err)
+	assert.False(t, valid)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsIssuedForActiveUser_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs("alex@test.com", 1).
+		WillReturnError(errDatabase)
+
+	valid, err := db.IsIssuedForActiveUser(dbConn, "alex@test.com", time.Now())
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.False(t, valid)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

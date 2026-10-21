@@ -95,6 +95,10 @@ It is based on the following libraries.
   granted
 - An administrator cannot disable or delete themselves, or revoke their own
   role `admin`
+- Disabling or deleting a user revokes their sessions, authorization codes,
+  access tokens and refresh tokens; they stay revoked when the user is enabled
+  again or an account with the same email address is created (see
+  [Revoking sessions and tokens](#revoking-sessions-and-tokens))
 - Role-based access enforced by middleware on each route group
 
 ### Operations
@@ -115,19 +119,20 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 92.8% |
-| `db` | 93.8% |
+| `api` | 92.9% |
+| `db` | 94.1% |
 | `jwthelper` | 97.7% |
 | `server` | 99.2% |
-| `store` | 93.8% |
+| `store` | 97.0% |
 
 ### Not yet implemented / known gaps
 
 - Passkeys (discoverable credentials, usernameless sign-in and platform
   authenticators) are not supported; WebAuthn sign-in needs the email first and
   only roaming security keys can be registered (`main.go`, `api/fido.go`)
-- Disabling or deleting a user does not revoke their existing sessions or
-  access tokens; they stay valid until they expire
+- Access tokens are self-contained JWTs and there is no introspection
+  endpoint, so a resource server verifying them with the JSON Web Key Set
+  accepts one issued before its user was disabled or deleted until it expires
 
 ## Setting up server
 
@@ -152,6 +157,19 @@ file.
 
 Note that setting of role `admin` is important to allow the user to act as an
 administrator to configure other aspects (such as OAuth clients) of this server.
+
+## Revoking sessions and tokens
+
+Disabling a user (`PATCH /users/:email` with `"is_enabled": false`) records
+the time in `revoked_at` of the user. A session, authorization code, access
+token or refresh token is rejected if its user no longer exists, is disabled,
+or was disabled or created after it was issued. Nothing is deleted from Redis;
+the check is made whenever a session is used (`RequiredAuthenticated` and
+`RequiredAdminAccess`, after which the session is signed out) and whenever a
+code or token is looked up (`/token`, `/userinfo`).
+
+A session signed in before this check was introduced has no time of sign-in
+and is rejected, so its user has to sign in again.
 
 ## Throttling failed sign-ins
 

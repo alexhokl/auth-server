@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/uuid"
 )
@@ -13,6 +15,11 @@ type User struct {
 	Credentials    []UserCredential
 	Roles          []Role `gorm:"many2many:user_roles;"`
 	IsEnabled      bool   `gorm:"default:false;not null"`
+	// CreatedAt is nil for users created before the column was added
+	CreatedAt *time.Time `gorm:"autoCreateTime"`
+	// RevokedAt is the time the user was last disabled; sessions and tokens
+	// issued at or before it are invalid
+	RevokedAt *time.Time
 }
 
 type Client struct {

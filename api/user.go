@@ -401,7 +401,7 @@ func GetUser(c *gin.Context) {
 // UpdateUser patches a user
 //
 //	@Summary		Patches a user
-//	@Description	Patches the display name or the enabled state of a user; only the fields provided are updated. An administrator cannot disable themselves.
+//	@Description	Patches the display name or the enabled state of a user; only the fields provided are updated. Disabling a user revokes their sessions, authorization codes and tokens, which stay revoked after the user is enabled again. An administrator cannot disable themselves.
 //	@Tags			users
 //	@Accept			json
 //	@Produce		json
@@ -452,7 +452,7 @@ func UpdateUser(c *gin.Context) {
 // DeleteUser deletes a user
 //
 //	@Summary		Deletes a user
-//	@Description	Deletes a user together with their credentials and roles. A user owning OAuth clients cannot be deleted, and an administrator cannot delete themselves.
+//	@Description	Deletes a user together with their credentials and roles, and revokes their sessions, authorization codes and tokens. A user owning OAuth clients cannot be deleted, and an administrator cannot delete themselves.
 //	@Tags			users
 //	@Param			email	path	string	true	"Email address of the user"
 //	@Success		204

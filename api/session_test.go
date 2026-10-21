@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	session "github.com/go-session/session/v3"
@@ -98,6 +99,34 @@ func TestSetAuthenticationToSession_RequiresEmail(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "email is not set in session")
+	})
+}
+
+func TestSetAuthenticationToSession_RecordsAuthenticatedAt(t *testing.T) {
+	runInSession(t, func(c *gin.Context) {
+		before := time.Now()
+		assert.NoError(t, setEmailToSession(c, "user@test.com"))
+		assert.NoError(t, setAuthenticationToSession(c, true))
+
+		authenticatedAt, ok := getAuthenticatedAt(c)
+		assert.True(t, ok)
+		assert.False(t, authenticatedAt.Before(before))
+		assert.False(t, authenticatedAt.After(time.Now()))
+	})
+}
+
+func TestGetAuthenticatedAt_Invalid(t *testing.T) {
+	runInSession(t, func(c *gin.Context) {
+		_, ok := getAuthenticatedAt(c)
+		assert.False(t, ok)
+
+		assert.NoError(t, setValuesToSession(c, map[string]interface{}{sessionAuthenticatedAtKey: 1}))
+		_, ok = getAuthenticatedAt(c)
+		assert.False(t, ok)
+
+		assert.NoError(t, setValuesToSession(c, map[string]interface{}{sessionAuthenticatedAtKey: "yesterday"}))
+		_, ok = getAuthenticatedAt(c)
+		assert.False(t, ok)
 	})
 }
 

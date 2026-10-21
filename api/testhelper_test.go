@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
 	"github.com/resendlabs/resend-go"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +52,17 @@ func authenticatedSession(email string) map[string]interface{} {
 	return map[string]interface{}{
 		sessionEmailKey:           email,
 		sessionIsAuthenticatedKey: true,
+		sessionAuthenticatedAtKey: time.Now().UTC().Format(time.RFC3339Nano),
 	}
+}
+
+// expectActiveUser expects the check of a session against its user by
+// db.IsIssuedForActiveUser, and returns the user with the given state.
+func expectActiveUser(mock sqlmock.Sqlmock, email string, isEnabled bool, revokedAt *time.Time) {
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs(email, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"email", "is_enabled", "created_at", "revoked_at"}).
+			AddRow(email, isEnabled, time.Now().Add(-time.Hour), revokedAt))
 }
 
 type testMailServer struct {

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/jsonhelper"
 	"github.com/gin-gonic/gin"
 	session "github.com/go-session/session/v3"
@@ -23,6 +25,7 @@ type oidcSession struct {
 
 const sessionEmailKey = "email"
 const sessionIsAuthenticatedKey = "is_authenticated"
+const sessionAuthenticatedAtKey = "authenticated_at"
 const sessionWebAuthnSessionKey = "webauthn_session"
 const sessionRedirectURLKey = "redirect_uri"
 const sessionOIDCKey = "oidc"
@@ -71,13 +74,67 @@ func isAuthenticated(c *gin.Context) bool {
 	return authenticated.(bool)
 }
 
+// hasValidAuthenticatedSession returns true if the session is authenticated
+// and its user has neither been disabled nor deleted since; an authenticated
+// session failing the check is signed out.
+func hasValidAuthenticatedSession(c *gin.Context) (bool, error) {
+	if !isAuthenticated(c) {
+		return false, nil
+	}
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		return false, fmt.Errorf("missing configuration for database")
+	}
+	email := getEmailFromSession(c)
+	valid := false
+	// a session authenticated before the time was recorded is invalid
+	if authenticatedAt, ok := getAuthenticatedAt(c); ok {
+		var err error
+		valid, err = db.IsIssuedForActiveUser(dbConn, email, authenticatedAt)
+		if err != nil {
+			return false, err
+		}
+	}
+	if !valid {
+		slog.Warn(
+			"Session of a disabled, deleted or revoked user",
+			slog.String("email", email),
+		)
+		if err := unsetAuthenticatedEmail(c); err != nil {
+			return false, err
+		}
+	}
+	return valid, nil
+}
+
+func getAuthenticatedAt(c *gin.Context) (time.Time, bool) {
+	value, ok := getValueFromSession(c, sessionAuthenticatedAtKey)
+	if !ok {
+		return time.Time{}, false
+	}
+	// stored as a string since session values are serialised as JSON
+	valueString, ok := value.(string)
+	if !ok {
+		return time.Time{}, false
+	}
+	authenticatedAt, err := time.Parse(time.RFC3339Nano, valueString)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return authenticatedAt, true
+}
+
 func setAuthenticationToSession(c *gin.Context, isAuthenticated bool) error {
 	if !isKeyExistInSession(c, sessionEmailKey) {
 		return fmt.Errorf("email is not set in session")
 	}
-	return setValuesToSession(c, map[string]interface{}{
+	values := map[string]interface{}{
 		sessionIsAuthenticatedKey: isAuthenticated,
-	})
+	}
+	if isAuthenticated {
+		values[sessionAuthenticatedAtKey] = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	return setValuesToSession(c, values)
 }
 
 func setEmailToSession(c *gin.Context, email string) error {
@@ -93,6 +150,7 @@ func unsetAuthenticatedEmail(c *gin.Context) error {
 	}
 	store.Delete(sessionEmailKey)
 	store.Delete(sessionIsAuthenticatedKey)
+	store.Delete(sessionAuthenticatedAtKey)
 	if err := store.Save(); err != nil {
 		return err
 	}

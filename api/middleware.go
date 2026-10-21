@@ -13,7 +13,12 @@ import (
 
 func RequiredAuthenticated() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isAuthenticated(c) {
+		authenticated, err := hasValidAuthenticatedSession(c)
+		if err != nil {
+			handleInternalError(c, err, "Unable to check authentication")
+			return
+		}
+		if !authenticated {
 			url, _ := url.Parse("/signin")
 			if c.Request.Method == http.MethodGet {
 				query := url.Query()
@@ -133,6 +138,10 @@ func isAdmin(c *gin.Context) (bool, error) {
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
 		return false, fmt.Errorf("missing configuration for database")
+	}
+	authenticated, err := hasValidAuthenticatedSession(c)
+	if err != nil || !authenticated {
+		return false, err
 	}
 	email := getEmailFromSession(c)
 	return db.HasRole(dbConn, email, "admin")

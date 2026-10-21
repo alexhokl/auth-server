@@ -619,7 +619,7 @@ func userExpectGetUserError(mock sqlmock.Sqlmock, email string, err error) {
 func userExpectCreateUser(mock sqlmock.Sqlmock, email string, err error) {
 	mock.ExpectBegin()
 	query := mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users"`)).
-		WithArgs(email, sqlmock.AnyArg(), "", false)
+		WithArgs(email, sqlmock.AnyArg(), "", false, sqlmock.AnyArg(), nil)
 	if err != nil {
 		query.WillReturnError(err)
 		mock.ExpectRollback()
@@ -1687,8 +1687,8 @@ func TestUpdateUser_Success_ReturnsUpdatedUser(t *testing.T) {
 	router.PATCH("/users/:email", UpdateUser)
 	userExpectGetUser(mock, "alex@test.com", []byte("hash"), true)
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2 WHERE email = $3`)).
-		WithArgs("Alexander", false, "alex@test.com").
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "display_name"=$1,"is_enabled"=$2,"revoked_at"=$3 WHERE email = $4`)).
+		WithArgs("Alexander", false, sqlmock.AnyArg(), "alex@test.com").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 

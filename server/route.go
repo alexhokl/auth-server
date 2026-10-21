@@ -140,8 +140,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 	r.POST("/token", gin.WrapF(api.GetTokenRequestHandler(oauthService)))
 	r.GET("/confirm/:otp", api.WithDatabaseConnection(dialector), api.Confirm)
 	r.POST("/changepassword",
-		api.RequiredAuthenticated(),
 		api.WithDatabaseConnection(dialector),
+		api.RequiredAuthenticated(),
 		withMail,
 		api.WithDomain(cfg.Domain),
 		withRedirects,
@@ -160,8 +160,8 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 		api.WithDomain(cfg.Domain),
 		api.NewPassword)
 
-	r.POST("/signout", api.RequiredAuthenticated(), api.SignOut)
-	r.GET("/authorize", api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
+	r.POST("/signout", api.WithDatabaseConnection(dialector), api.RequiredAuthenticated(), api.SignOut)
+	r.GET("/authorize", api.WithDatabaseConnection(dialector), api.RequiredAuthenticated(), gin.WrapF(api.GetAuthorizationRequestHandler(oauthService)))
 	r.GET("/.well-known/openid-configuration", api.WithDatabaseConnection(dialector), api.GetOpenIDConfiguration)
 	r.GET("/.well-known/openid-configuration/jwks", api.GetJSONWebKeySetHandler(cfg.KeyID, privateKey))
 	r.GET("/userinfo", api.WithDatabaseConnection(dialector), api.GetUserInfoHandler(oauthService))
@@ -222,13 +222,13 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 		r.StaticFile("/assets/styles.css", "./assets/styles.css")
 		r.StaticFile("/assets/authenticated.js", "./assets/authenticated.js")
 		r.StaticFile("/assets/http.js", "./assets/http.js")
-		r.GET("/authenticated", api.RequiredAuthenticated(), api.AuthenticatedUI)
+		r.GET("/authenticated", api.WithDatabaseConnection(dialector), api.RequiredAuthenticated(), api.AuthenticatedUI)
 		r.StaticFile("/", "./assets/home.html")
 		r.StaticFile("/signup", "./assets/signup.html")
 		r.StaticFile("/assets/signup.js", "./assets/signup.js")
 		r.StaticFile("/signup_continue", "./assets/signup_email.html")
 		r.StaticFile("/assets/changepassword.js", "./assets/changepassword.js")
-		r.GET("/changepassword", api.RequiredAuthenticated(), api.ChangePasswordUI)
+		r.GET("/changepassword", api.WithDatabaseConnection(dialector), api.RequiredAuthenticated(), api.ChangePasswordUI)
 		r.StaticFile("/changepassword_completed", "./assets/changepassword_completed.html")
 		r.StaticFile("/resetpassword", "./assets/reset_password.html")
 		r.StaticFile("/assets/new_password.js", "./assets/new_password.js")
@@ -239,12 +239,15 @@ func GetRouter(dialector gorm.Dialector, tokenGenerator oauth2.AccessGenerate, i
 
 func getOAuthService(dbConn *gorm.DB, tokenGenerator oauth2.AccessGenerate, idTokenSigner api.IDTokenSigner, redisHost, redisPassword, redisDatabaseName string, enforcePKCE bool) *server.Server {
 	clientStore := store.NewClientStore(dbConn)
-	tokenStore := oauthredis.NewRedisStore(
-		&oauthredisopts.Options{
-			Addr:     redisHost,
-			Password: redisPassword,
-		},
-		redisDatabaseName,
+	tokenStore := store.NewTokenStore(
+		dbConn,
+		oauthredis.NewRedisStore(
+			&oauthredisopts.Options{
+				Addr:     redisHost,
+				Password: redisPassword,
+			},
+			redisDatabaseName,
+		),
 	)
 
 	manager := manage.NewDefaultManager()
