@@ -23,7 +23,9 @@ const registerKey = async () => {
     pubKeyCredParams: resp.pubKeyCredParams,
     rp: resp.rp,
     user: {
-      id: Uint8Array.from(resp.user.id, c => c.charCodeAt(0)),
+      // user.id is the base64url encoding of the user handle; unlike the
+      // challenge, there is no re-encoding on the server
+      id: base64UrlDecode(resp.user.id),
       name: resp.user.name,
       displayName: resp.user.displayName,
     },

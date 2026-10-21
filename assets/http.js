@@ -51,4 +51,4 @@ const base64ToBase64Url = str =>
   str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 const base64UrlToBase64 = str =>
-  str.replace(/\-/g, '+').replace(/\_/g, '/').concat('=');
+  str.replace(/\-/g, '+').replace(/\_/g, '/').padEnd(Math.ceil(str.length / 4) * 4, '=');
