@@ -36,7 +36,7 @@ The Taskfile also has many `test-*` tasks (`test-login`, `test-token`, `test-cli
 ## Architecture
 
 - `main.go` — wiring only: Viper config (`cli.ConfigureViper("", "auth", ...)`), DB connect, `db.Migrate(dbConn)` (GORM AutoMigrate — **schema changes go in `db/model.go`, there are no migration files**), seed-user import, then `server.GetRouter(...)`.
-- `server/route.go` — single `GetRouter(dialector, tokenGenerator, privateKey, fidoService, cfg RouterConfig)`; all routes and middleware groups live here. Adding a config knob means adding a field to `RouterConfig` (or its nested `MailConfig`) and setting it from Viper in `main.go`; Viper defaults live in `setDefaultSettings()` in `main.go`.
+- `server/route.go` — single `GetRouter(dialector, tokenGenerator, idTokenSigner, privateKey, fidoService, cfg RouterConfig)`; all routes and middleware groups live here. Adding a config knob means adding a field to `RouterConfig` (or its nested `MailConfig`) and setting it from Viper in `main.go`; Viper defaults live in `setDefaultSettings()` in `main.go`.
 - `api/` — Gin handlers, middleware, request/response models.
 - `db/` — GORM models (`model.go`) and queries (`helper.go`).
 - `store/` — go-oauth2 client store. `jwthelper/` — JWT signing.
