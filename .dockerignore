@@ -9,3 +9,7 @@ Caddyfile
 cookies.txt
 redis_password/
 keys/
+node_modules/
+test/
+package.json
+package-lock.json

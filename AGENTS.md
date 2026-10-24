@@ -4,12 +4,13 @@ OAuth2 / OpenID Connect authentication server with WebAuthn (FIDO2), Go (see `go
 
 ## Commands
 
-Task runner is [Task](https://taskfile.dev/) (`Taskfile.yml`), not Make. There is **no CI, no linter config, and no formatter config** in this repo — verification is `task build` + `task test`.
+Task runner is [Task](https://taskfile.dev/) (`Taskfile.yml`), not Make. There is **no CI, no linter config, and no formatter config** in this repo — verification is `task build` + `task test` (plus `task test-js` when `assets/*.js` change).
 
 | Command | Notes |
 |---|---|
 | `task build` | `go build -tags=nomsgpack -o /dev/null` |
 | `task test` | `go test ./...` |
+| `task test-js` / `task coverage-js` | `node --test` + jsdom tests of `assets/*.js` (runs `npm ci` if `node_modules` is missing) |
 | `task run-debug` / `task run` | Depends on `up-db` **and** `swagger`, so `swag` must be installed and Docker running |
 | `task up-db` / `task down` | PostgreSQL + Redis via `docker-compose.yml` |
 | `task swagger` / `task swagger-format` | `swag init` / `swag fmt` |
@@ -65,6 +66,8 @@ Logging is `log/slog` structured only: `slog.Error("msg", slog.String("error", e
 Imports are grouped: stdlib, then `github.com/alexhokl/auth-server/...`, then third party.
 
 Test package naming is inconsistent by design: `api/*_test.go` use `package api` (they exercise unexported helpers); `db/` and `store/` use `package db_test` / `package store_test`. Match the package already used in the directory. DB tests use `go-sqlmock` with regex-matched queries; assertions use `testify/assert`.
+
+Frontend tests live in `test/assets/` (not `assets/`, which is copied into the runtime image). `test/assets/helpers.js` `loadPage` parses the real page from `assets/` with jsdom and runs the scripts through `node:vm` with a `file:` URL so coverage is attributed to `assets/*.js`; top-level `const`s are reached with `g(name)`, and navigations are captured by patching a jsdom internal (jsdom is pinned in `package.json`). Compare typed arrays and objects created by the scripts with `toArray`/copies, as they belong to the page realm.
 
 Swagger comments (`@Summary`, `@Tags`, `@Router`, ...) are required on new endpoints; run `task swagger` afterwards and commit `docs/`.
 

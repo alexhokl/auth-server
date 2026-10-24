@@ -133,6 +133,9 @@ It is based on the following libraries.
 | `server` | 99.2% |
 | `store` | 97.0% |
 
+`task test-js` passes; the frontend scripts in `assets/` have 100% line and
+branch coverage (`task coverage-js`).
+
 ### Not yet implemented / known gaps
 
 None known.
@@ -295,6 +298,14 @@ task test
 ```
 
 Note that the build uses build tag `nomsgpack`; see `Taskfile.yml`.
+
+The frontend scripts in `assets/` are tested with the Node.js test runner and
+[jsdom](https://github.com/jsdom/jsdom) (requires Node.js and npm):
+
+```sh
+task test-js
+task coverage-js
+```
 
 ### Keys and secrets
 

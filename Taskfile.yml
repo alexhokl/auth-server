@@ -312,6 +312,28 @@ tasks:
     cmds:
       - go test ./...
 
+  npm-install:
+    desc: Install dependencies of the JavaScript unit tests
+    silent: true
+    cmds:
+      - npm ci
+    status:
+      - test -d node_modules
+
+  test-js:
+    desc: Run unit tests of the frontend scripts in assets/
+    silent: true
+    deps: [npm-install]
+    cmds:
+      - npm test
+
+  coverage-js:
+    desc: Run unit tests of the frontend scripts in assets/ with coverage
+    silent: true
+    deps: [npm-install]
+    cmds:
+      - npm run coverage
+
   commit:
     desc: Show the current git commit ID
     silent: true

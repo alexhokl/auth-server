@@ -1,0 +1,13 @@
+{
+  "name": "auth-server-assets",
+  "private": true,
+  "type": "module",
+  "description": "Unit tests for the frontend scripts in assets/",
+  "scripts": {
+    "test": "node --test test/assets/",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-include='assets/**' test/assets/"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.2"
+  }
+}
