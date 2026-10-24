@@ -307,6 +307,10 @@ task test-js
 task coverage-js
 ```
 
+Before a release, a human runs the end-to-end checklist in
+[REGRESSION_TEST.md](REGRESSION_TEST.md), which covers browsers,
+authenticators, external providers, emails and the Docker image.
+
 ### Keys and secrets
 
 Secrets are configured as *file paths* rather than values (for example

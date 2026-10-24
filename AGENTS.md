@@ -21,6 +21,8 @@ Always pass `-tags=nomsgpack` to `go build`/`go run`; omitting it diverges from 
 
 Known unimplemented areas are listed under "Implementation status" in `README.md`; keep that list current when closing or adding gaps.
 
+`REGRESSION_TEST.md` is the manual end-to-end checklist a human runs before a release (browsers, authenticators, OIDC providers, emails, Docker image). When adding or changing an endpoint or user-visible behaviour, add or update its cases there; every route in `server/route.go` should appear in at least one case.
+
 Focused testing:
 ```sh
 go test -v -run TestSignUp ./api/...
