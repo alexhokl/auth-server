@@ -137,9 +137,27 @@ func setAuthenticationToSession(c *gin.Context, isAuthenticated bool) error {
 	return setValuesToSession(c, values)
 }
 
+// setEmailToSession sets the email of a sign-in in progress. Any previous
+// authentication is removed in the same save so that an authenticated session
+// cannot be switched to another user.
 func setEmailToSession(c *gin.Context, email string) error {
+	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
+	if err != nil {
+		return err
+	}
+	store.Set(sessionEmailKey, email)
+	store.Delete(sessionIsAuthenticatedKey)
+	store.Delete(sessionAuthenticatedAtKey)
+	return store.Save()
+}
+
+// setAuthenticatedEmailToSession marks the session as authenticated as email
+// in a single save.
+func setAuthenticatedEmailToSession(c *gin.Context, email string) error {
 	return setValuesToSession(c, map[string]interface{}{
-		sessionEmailKey: email,
+		sessionEmailKey:           email,
+		sessionIsAuthenticatedKey: true,
+		sessionAuthenticatedAtKey: time.Now().UTC().Format(time.RFC3339Nano),
 	})
 }
 
@@ -179,6 +197,17 @@ func getWebAuthnSession(c *gin.Context) (*webauthn.SessionData, error) {
 	var session webauthn.SessionData
 	jsonhelper.ParseJSONString(sessionValueString, &session)
 	return &session, nil
+}
+
+// unsetWebAuthnSession removes the WebAuthn session so that its challenge
+// cannot be used again.
+func unsetWebAuthnSession(c *gin.Context) error {
+	store, err := getSessionStoreFromRequest(c.Writer, c.Request)
+	if err != nil {
+		return err
+	}
+	store.Delete(sessionWebAuthnSessionKey)
+	return store.Save()
 }
 
 func setOIDCSession(c *gin.Context, oidcSession *oidcSession) error {

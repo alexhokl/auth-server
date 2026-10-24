@@ -57,6 +57,10 @@ It is based on the following libraries.
   management and clone detection; the WebAuthn user display name is the
   display name of the user, or the email address when it is not set; see
   [Current FIDO2/WebAuthn Support](#current-fido2webauthn-support)
+- Passkeys: platform authenticators (Touch ID, Windows Hello, iCloud Keychain,
+  Google Password Manager) and security keys create discoverable credentials
+  where supported, and usernameless sign-in with them (a "Sign in with a
+  passkey" button and passkey autofill on the email field of `/signin`)
 - Sign-up and sign-in through Google, GitHub, Apple, Okta or Microsoft,
   enabled with `AUTH_ENABLE_OIDC`; an account is matched by an email address
   which the provider has verified (see
@@ -123,17 +127,15 @@ It is based on the following libraries.
 
 | Package | Coverage |
 |---------|----------|
-| `api` | 93.2% |
-| `db` | 94.1% |
+| `api` | 93.7% |
+| `db` | 94.4% |
 | `jwthelper` | 97.7% |
 | `server` | 99.2% |
 | `store` | 97.0% |
 
 ### Not yet implemented / known gaps
 
-- Passkeys (discoverable credentials, usernameless sign-in and platform
-  authenticators) are not supported; WebAuthn sign-in needs the email first and
-  only roaming security keys can be registered (`main.go`, `api/fido.go`)
+None known.
 
 ## Setting up server
 
@@ -203,10 +205,16 @@ so one which has to honour revocation should introspect them.
 Failed password and WebAuthn sign-ins are counted per email address and per
 client IP address in Redis, in a fixed window which starts at the first
 failure. Once either count reaches its limit, `POST /signin`,
-`POST /signin/challenge`, `POST /fido/signin/challenge` and
-`POST /fido/signin` respond with `429 Too Many Requests` until the window
-ends. A successful sign-in resets the count of the email address but not that
-of the IP address. Sign-in through an external provider is not counted.
+`POST /signin/challenge`, `POST /fido/signin/challenge`, `POST /fido/signin`,
+`POST /fido/signin/passkey/challenge` and `POST /fido/signin/passkey` respond
+with `429 Too Many Requests` until the window ends. A successful sign-in resets
+the count of the email address but not that of the IP address. Sign-in through
+an external provider is not counted.
+
+A passkey sign-in has no email address until the user is resolved from the
+user handle of the assertion, so a failure before that (such as an unknown or
+malformed user handle) is counted against the IP address only, and
+`POST /fido/signin/passkey/challenge` checks the IP address only.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -405,12 +413,17 @@ encoding.
 
 ```json
 "authenticatorSelection": {
-  "authenticatorAttachment": "cross-platform",
   "requireResidentKey": false,
-  "residentKey": "discouraged",
+  "residentKey": "preferred",
   "userVerification": "required"
 }
 ```
+
+`authenticatorAttachment` is not set, so both platform authenticators and
+security keys can be registered. With `residentKey` set to `preferred`, a
+security key without resident-key slots still registers, as a non-discoverable
+credential, while a security key with slots uses one up (older YubiKeys hold
+about 25).
 
 ## Current FIDO2/WebAuthn Support
 
@@ -419,12 +432,13 @@ capabilities.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Credential Registration | Complete | Users can register security keys (roaming authenticators) |
-| Passwordless Authentication | Complete | Login using WebAuthn credentials |
-| Credential Management | Complete | List, rename, and delete credentials |
-| Cross-platform Authenticators | Supported | USB keys, NFC, BLE |
+| Credential Registration | Complete | Users can register passkeys (platform authenticators and passkey providers) and security keys (roaming authenticators); credentials are discoverable where the authenticator supports it |
+| Passwordless Authentication | Complete | Login using WebAuthn credentials, after entering an email address or, with a discoverable credential, without one |
+| Credential Management | Complete | List, rename, and delete credentials; synced (backup eligible) credentials are marked |
+| Platform Authenticators | Supported | Touch ID, Windows Hello, on-device Android and iOS passkeys, iCloud Keychain, Google Password Manager |
+| Cross-platform Authenticators | Supported | USB keys, NFC, BLE, a phone through hybrid |
 | User Verification | Required | PIN/biometric required |
-| Clone Detection | Implemented | Sign counter tracking |
+| Clone Detection | Implemented | The sign counter is stored after each sign-in; a credential whose counter does not increase gets a clone warning and is rejected until it is deleted and registered again |
 
 ### API Endpoints
 
@@ -432,13 +446,17 @@ capabilities.
 |----------|--------|-------------|
 | /fido/register/challenge | POST | Start registration (auth required) |
 | /fido/register | POST | Complete registration |
-| /fido/signin/challenge | POST | Start authentication |
-| /fido/signin | POST | Complete authentication |
+| /fido/signin/challenge | POST | Start authentication of the email in the session |
+| /fido/signin | POST | Complete authentication of the email in the session |
+| /fido/signin/passkey/challenge | POST | Start authentication with a passkey, without an email |
+| /fido/signin/passkey | POST | Complete authentication with a passkey |
 | /fido/credentials | GET | List user's credentials |
 | /fido/credentials/:id | DELETE | Delete a credential |
 | /fido/credentials/:id | PATCH | Rename a credential |
 
 ### Authentication Flow
+
+Email first:
 
 1. User enters email at /signin → stored in session
 2. Client requests challenge from /fido/signin/challenge
@@ -446,12 +464,41 @@ capabilities.
 4. Server validates assertion at /fido/signin
 5. Session marked authenticated, optional redirect
 
+Usernameless (passkey):
+
+1. On /signin, the client requests a challenge from
+   /fido/signin/passkey/challenge, either when the page loads (passkey
+   autofill on the email field) or when "Sign in with a passkey" is clicked
+2. Browser's navigator.credentials.get() lets the user pick a passkey, with no
+   `allowCredentials`
+3. Server resolves the user from the user handle of the assertion and
+   validates it at /fido/signin/passkey
+4. Session marked authenticated as that user; the client redirects to
+   `redirect_uri` or /authenticated
+
+Notes:
+
+- The sign-in endpoints accept only `Content-Type: application/json`, which a
+  third-party page cannot send without a CORS preflight.
+- A challenge is used at most once (for requests made one after another); it
+  is removed from the session before the assertion is validated.
+- The sign counter, clone warning and backup state of the credential are
+  stored after each sign-in. A credential with a clone warning is rejected
+  until it is deleted (`DELETE /fido/credentials/:id`) and registered again.
+- Security keys registered before passkey support are non-discoverable and
+  still need the email-first flow.
+- A discoverable credential registered before the user handle fix in the front
+  end (through a phone, or a password-manager browser extension) holds a wrong
+  user handle and fails both flows; delete it and register it again.
+
 ### WebAuthn Configuration
 
-- `AuthenticatorAttachment`: `protocol.CrossPlatform` (Hardware keys supported)
-- `ResidentKey`: `protocol.ResidentKeyRequirementDiscouraged`
+- `AuthenticatorAttachment`: unset (platform authenticators and security keys)
+- `ResidentKey`: `protocol.ResidentKeyRequirementPreferred` (discoverable
+  where supported), with `RequireResidentKey` false
 - `UserVerification`: `protocol.VerificationRequired` (PIN/biometric required)
-- `AttestationPreference`: `protocol.PreferDirectAttestation`
+- `AttestationPreference`: `protocol.PreferNoAttestation`; attestation is not
+  verified against a metadata service, and the stored AAGUID may be all zeros
 
 ### Storage
 

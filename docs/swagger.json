@@ -245,6 +245,9 @@
         "/fido/signin/challenge": {
             "post": {
                 "description": "This starts the dance for sign in",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -253,8 +256,71 @@
                 ],
                 "summary": "Serves a challenge for starting a login dance",
                 "responses": {
+                    "400": {
+                        "description": "Bad Request"
+                    },
                     "401": {
                         "description": "Invalid email or password"
+                    },
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
+            }
+        },
+        "/fido/signin/passkey": {
+            "post": {
+                "description": "This completes the dance for sign in without an email address",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Verifies a passkey and sign in",
+                "parameters": [
+                    {
+                        "description": "Credential assertion request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.DummyCredentialAssertionData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "429": {
+                        "description": "Too many failed sign-ins"
+                    }
+                }
+            }
+        },
+        "/fido/signin/passkey/challenge": {
+            "post": {
+                "description": "This starts the dance for sign in without an email address",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Serves a challenge for signing in with a passkey",
+                "responses": {
+                    "400": {
+                        "description": "Bad Request"
                     },
                     "429": {
                         "description": "Too many failed sign-ins"
@@ -999,6 +1065,10 @@
         "api.CredentialInfo": {
             "type": "object",
             "properties": {
+                "backup_eligible": {
+                    "description": "BackupEligible is true for a credential which can be synced, such as\na passkey of a password manager",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "array",
                     "items": {

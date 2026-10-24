@@ -32,6 +32,7 @@ const loginByKey = async () => {
       }
     }),
     timeout: resp.timeout,
+    userVerification: resp.userVerification,
   };
 
   const credentials = await navigator.credentials.get({ publicKey: publicKeyRetrievalOptions });
@@ -51,15 +52,6 @@ const loginByKey = async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const redirectUri = urlParams.get('redirect_uri');
   window.location.href = isSafeRedirectUri(redirectUri) ? redirectUri : '/authenticated';
-};
-
-// only paths on this server are followed so that a sign in cannot take a user
-// to another site
-const isSafeRedirectUri = (redirectUri) => {
-  return redirectUri !== null &&
-    redirectUri.startsWith('/') &&
-    !redirectUri.startsWith('//') &&
-    !redirectUri.startsWith('/\\');
 };
 
 togglePasswordButton.addEventListener('click', togglePassword);

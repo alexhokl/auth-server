@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -43,6 +45,20 @@ func ListUsers(db *gorm.DB) ([]User, error) {
 func GetUser(db *gorm.DB, email string) (*User, error) {
 	var user User
 	dbResult := db.Preload(clause.Associations).First(&user, "email = ?", email)
+	if dbResult.Error != nil {
+		if dbResult.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, dbResult.Error
+	}
+	return &user, nil
+}
+
+// GetUserByWebAuthnID returns the user of a WebAuthn user handle, or nil if
+// there is no such user.
+func GetUserByWebAuthnID(db *gorm.DB, webAuthnUserID uuid.UUID) (*User, error) {
+	var user User
+	dbResult := db.Preload(clause.Associations).First(&user, "web_authn_user_id = ?", webAuthnUserID)
 	if dbResult.Error != nil {
 		if dbResult.Error == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -252,6 +268,26 @@ func UpdateCredential(db *gorm.DB, email string, id []byte, friendlyName string)
 	dbResult := db.Save(credential)
 	if dbResult.Error != nil {
 		return translateError(db, dbResult.Error)
+	}
+	return nil
+}
+
+// UpdateCredentialAuthenticator writes back the sign counter, the clone
+// warning and the backup state of a credential after a sign-in with it.
+func UpdateCredentialAuthenticator(db *gorm.DB, email string, cred *webauthn.Credential) error {
+	// a map is used so that false and zero values are written
+	dbResult := db.Model(&UserCredential{}).
+		Where("user_email = ? AND id = ?", email, cred.ID).
+		Updates(map[string]interface{}{
+			"sign_count":    cred.Authenticator.SignCount,
+			"clone_warning": cred.Authenticator.CloneWarning,
+			"backup_state":  cred.Flags.BackupState,
+		})
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	if dbResult.RowsAffected == 0 {
+		return fmt.Errorf("credential not found")
 	}
 	return nil
 }

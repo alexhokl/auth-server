@@ -9,6 +9,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alexhokl/auth-server/db"
 	"github.com/alexhokl/helper/database"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
@@ -2163,6 +2164,118 @@ func TestRemoveUserRole_DatabaseError(t *testing.T) {
 	mock.ExpectRollback()
 
 	_, err := db.RemoveUserRole(dbConn, "alex@test.com", "admin")
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// GetUserByWebAuthnID Tests
+
+func TestGetUserByWebAuthnID_Found(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	userID := uuid.New()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE web_authn_user_id = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs(userID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"email", "password_hash", "display_name", "web_authn_user_id", "is_enabled"}).
+			AddRow("alex@test.com", []byte("hash"), "Alex", userID, true))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_credentials" WHERE "user_credentials"."user_email" = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_email"}).AddRow([]byte("cred123"), "alex@test.com"))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user_roles" WHERE "user_roles"."user_email" = $1`)).
+		WithArgs("alex@test.com").
+		WillReturnRows(sqlmock.NewRows([]string{"user_email", "role_name"}))
+
+	user, err := db.GetUserByWebAuthnID(dbConn, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, user)
+	assert.Equal(t, "alex@test.com", user.Email)
+	assert.Equal(t, userID, user.WebAuthnUserID)
+	assert.Len(t, user.Credentials, 1)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserByWebAuthnID_NotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	userID := uuid.New()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE web_authn_user_id = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs(userID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"email"}))
+
+	user, err := db.GetUserByWebAuthnID(dbConn, userID)
+
+	assert.NoError(t, err)
+	assert.Nil(t, user)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserByWebAuthnID_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	userID := uuid.New()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE web_authn_user_id = $1 ORDER BY "users"."email" LIMIT $2`)).
+		WithArgs(userID, 1).
+		WillReturnError(errDatabase)
+
+	user, err := db.GetUserByWebAuthnID(dbConn, userID)
+
+	assert.ErrorIs(t, err, errDatabase)
+	assert.Nil(t, user)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// UpdateCredentialAuthenticator Tests
+
+func updateCredentialAuthenticatorTestCredential() *webauthn.Credential {
+	return &webauthn.Credential{
+		ID:            []byte("cred123"),
+		Flags:         webauthn.CredentialFlags{BackupState: false},
+		Authenticator: webauthn.Authenticator{SignCount: 7, CloneWarning: false},
+	}
+}
+
+func TestUpdateCredentialAuthenticator_Success(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	// false values are written as well
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET "backup_state"=$1,"clone_warning"=$2,"sign_count"=$3 WHERE user_email = $4 AND id = $5`)).
+		WithArgs(false, false, uint32(7), "alex@test.com", []byte("cred123")).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := db.UpdateCredentialAuthenticator(dbConn, "alex@test.com", updateCredentialAuthenticatorTestCredential())
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredentialAuthenticator_NotFound(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET`)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	err := db.UpdateCredentialAuthenticator(dbConn, "alex@test.com", updateCredentialAuthenticatorTestCredential())
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "credential not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateCredentialAuthenticator_DatabaseError(t *testing.T) {
+	dbConn, mock := getDBConnection()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user_credentials" SET`)).
+		WillReturnError(errDatabase)
+	mock.ExpectRollback()
+
+	err := db.UpdateCredentialAuthenticator(dbConn, "alex@test.com", updateCredentialAuthenticatorTestCredential())
 
 	assert.ErrorIs(t, err, errDatabase)
 	assert.NoError(t, mock.ExpectationsWereMet())

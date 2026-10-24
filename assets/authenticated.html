@@ -15,7 +15,8 @@
   <section>
 
     <div>
-        <button id="register" onclick="registerKey()" >Register a new key</button>
+        <button id="register" onclick="registerKey()" >Add a passkey or security key</button>
+        <p id="register-error" role="alert" hidden></p>
     </div>
 
     <div>
@@ -25,6 +26,7 @@
             <tr>
               <th>Name</th>
               <th>Key ID</th>
+              <th>Synced</th>
               <th>Actions</th>
             </tr>
           </thead>

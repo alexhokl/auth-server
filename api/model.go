@@ -200,6 +200,9 @@ type JSONWebKeySet struct {
 type CredentialInfo struct {
 	ID   []byte `json:"id"`
 	Name string `json:"name"`
+	// BackupEligible is true for a credential which can be synced, such as
+	// a passkey of a password manager
+	BackupEligible bool `json:"backup_eligible"`
 }
 
 type ImportUser struct {
@@ -245,8 +248,9 @@ func ToUserResponse(u db.User) UserResponse {
 	}
 	for _, credential := range u.Credentials {
 		response.Credentials = append(response.Credentials, CredentialInfo{
-			ID:   credential.ID,
-			Name: credential.FriendlyName,
+			ID:             credential.ID,
+			Name:           credential.FriendlyName,
+			BackupEligible: credential.BackupEligible,
 		})
 	}
 	return response

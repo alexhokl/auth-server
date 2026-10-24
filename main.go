@@ -251,15 +251,20 @@ func getFidoService(domain string, displayName string, isDebug bool) (*api.FidoS
 			fmt.Sprintf("https://%s", domain),
 			fmt.Sprintf("http://%s:%d", domain, viper.GetInt("port")),
 		},
+		// attestation is not verified against a metadata service, and synced
+		// passkeys do not provide one
 		// see https://www.w3.org/TR/webauthn/#enum-attestation-convey
-		AttestationPreference: protocol.PreferDirectAttestation,
+		AttestationPreference: protocol.PreferNoAttestation,
 		// see https://www.w3.org/TR/webauthn/#dictionary-authenticatorSelection
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			// AuthenticatorAttachment is left unset so that both platform
+			// authenticators (passkeys) and security keys can be registered
 			// see https://www.w3.org/TR/webauthn/#enum-attachment
-			AuthenticatorAttachment: protocol.CrossPlatform,
+			// credentials are discoverable where the authenticator supports
+			// it so that they can be used without an email address first
 			// see https://www.w3.org/TR/webauthn/#enum-residentKeyRequirement
-			ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
-			// RequireResidentKey: false,
+			ResidentKey:        protocol.ResidentKeyRequirementPreferred,
+			RequireResidentKey: protocol.ResidentKeyNotRequired(),
 			// see https://www.w3.org/TR/webauthn/#enumdef-userverificationrequirement
 			UserVerification: protocol.VerificationRequired,
 		},

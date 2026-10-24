@@ -254,12 +254,7 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
-	if err := setEmailToSession(c, user.Email); err != nil {
-		handleInternalError(c, err, "Unable to save cookie session")
-		return
-	}
-
-	if err := setAuthenticationToSession(c, true); err != nil {
+	if err := setAuthenticatedEmailToSession(c, user.Email); err != nil {
 		handleInternalError(c, err, "Unable to save cookie session")
 		return
 	}

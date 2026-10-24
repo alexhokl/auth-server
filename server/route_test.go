@@ -166,6 +166,25 @@ func TestOIDCRoutes(t *testing.T) {
 	}
 }
 
+func TestPasskeyRoutes(t *testing.T) {
+	paths := []string{
+		"/fido/signin/passkey/challenge",
+		"/fido/signin/passkey",
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			router, _ := getRouter()
+			w := httptest.NewRecorder()
+			// without a JSON content type, the request is rejected by the
+			// handler rather than the router
+			req, _ := http.NewRequest(http.MethodPost, path, nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
 func TestSwaggerJson(t *testing.T) {
 	router, _ := getRouter()
 	w := httptest.NewRecorder()

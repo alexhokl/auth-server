@@ -352,7 +352,7 @@ func TestLoginChallenge_TooManyFailures_ReturnsTooManyRequests(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/fido/signin/challenge", WithSignInThrottle(throttle), fidoTestService(t).LoginChallenge)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
@@ -365,7 +365,7 @@ func TestLoginChallenge_UserNotFound_RecordsFailure(t *testing.T) {
 	router.POST("/fido/signin/challenge", WithSignInThrottle(throttle), fidoTestService(t).LoginChallenge)
 	fidoExpectUserNotFound(mock, fidoTestEmail)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)

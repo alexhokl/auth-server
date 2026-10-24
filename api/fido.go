@@ -12,8 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+const contentTypeJSON = "application/json"
+
+// errSignInBlocked is returned by the user handler of a passkey sign-in when
+// the resolved user has too many failed sign-ins.
+var errSignInBlocked = errors.New("too many failed sign-ins")
 
 type FidoService struct {
 	W *webauthn.WebAuthn
@@ -174,11 +181,17 @@ func (s *FidoService) Register(c *gin.Context) {
 //	@Summary		Serves a challenge for starting a login dance
 //	@Description	This starts the dance for sign in
 //	@Tags			user
+//	@Accept			json
 //	@Produce		json
+//	@Failure		400
 //	@Failure		401	"Invalid email or password"
 //	@Failure		429	"Too many failed sign-ins"
 //	@Router			/fido/signin/challenge [post]
 func (s *FidoService) LoginChallenge(c *gin.Context) {
+	if !requireJSONRequest(c) {
+		return
+	}
+
 	email := getEmailFromSession(c)
 	if email == "" {
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -266,27 +279,18 @@ func (s *FidoService) LoginChallenge(c *gin.Context) {
 //	@Failure		429	"Too many failed sign-ins"
 //	@Router			/fido/signin [post]
 func (s *FidoService) Login(c *gin.Context) {
+	if !requireJSONRequest(c) {
+		return
+	}
+
 	dbConn, ok := getDatabaseConnectionFromContext(c)
 	if !ok {
 		handleInternalError(c, nil, "Missing configuration for database")
 		return
 	}
 
-	res, err := protocol.ParseCredentialRequestResponseBody(c.Request.Body)
-	if err != nil {
-		if protocolErr, ok := err.(*protocol.Error); ok {
-			slog.Warn(
-				"Failed to parse credential request response body",
-				slog.String("error", protocolErr.Details),
-				slog.String("reason", protocolErr.DevInfo),
-			)
-		} else {
-			slog.Warn(
-				"Failed to parse credential request response body",
-				slog.String("error", err.Error()),
-			)
-		}
-		c.AbortWithStatus(http.StatusBadRequest)
+	res, ok := parseCredentialRequestResponseBody(c)
+	if !ok {
 		return
 	}
 	email := getEmailFromSession(c)
@@ -312,21 +316,19 @@ func (s *FidoService) Login(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	webAuthnSession, err := getWebAuthnSession(c)
-	if err != nil {
-		slog.Error(
-			"WebAuthn session not found",
-			slog.String("error", err.Error()),
+	if !user.IsEnabled {
+		slog.Warn(
+			"User is disabled",
 			slog.String("email", email),
 		)
-		c.AbortWithStatus(http.StatusBadRequest)
+		recordFailedSignIn(c, email)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-
-	// chanllenge generated previously is just a random string
-	// the challenge returned from client is base64url encoded
-	// thus, conversion is required for comparison purpose
-	webAuthnSession.Challenge = base64.RawURLEncoding.EncodeToString([]byte(webAuthnSession.Challenge))
+	webAuthnSession, ok := consumeWebAuthnSession(c)
+	if !ok {
+		return
+	}
 
 	credential, err := s.W.ValidateLogin(user, *webAuthnSession, res)
 	if err != nil {
@@ -340,9 +342,239 @@ func (s *FidoService) Login(c *gin.Context) {
 		return
 	}
 
+	completeLogin(c, dbConn, email, credential)
+}
+
+// PasskeyLoginChallenge serves a challenge for signing in with a passkey
+//
+//	@Summary		Serves a challenge for signing in with a passkey
+//	@Description	This starts the dance for sign in without an email address
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Failure		400
+//	@Failure		429	"Too many failed sign-ins"
+//	@Router			/fido/signin/passkey/challenge [post]
+func (s *FidoService) PasskeyLoginChallenge(c *gin.Context) {
+	if !requireJSONRequest(c) {
+		return
+	}
+
+	redirectURL := c.Query(queryParamRedirectURL)
+
+	if !isSafeRedirectURL(redirectURL) {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// the user is unknown until an assertion is posted, thus only the IP
+	// address is checked
+	if isMaliciousRequest(c, "") {
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
+
+	credentialAssertion, webAuthnSession, err := s.W.BeginDiscoverableLogin()
+	if err != nil {
+		handleInternalError(c, err, "Failed to begin discoverable login")
+		return
+	}
+	sessionJSON, err := jsonhelper.GetJSONString(webAuthnSession)
+	if err != nil {
+		handleInternalError(c, err, "Failed to serialise webauthn session")
+		return
+	}
+	err = setValuesToSession(c, map[string]interface{}{
+		sessionWebAuthnSessionKey: sessionJSON,
+		sessionRedirectURLKey:     redirectURL,
+	})
+	if err != nil {
+		handleInternalError(c, err, "Failed to set webauthn session")
+		return
+	}
+	c.JSON(http.StatusOK, credentialAssertion)
+}
+
+// PasskeyLogin verifies a passkey and sign in
+//
+//	@Summary		Verifies a passkey and sign in
+//	@Description	This completes the dance for sign in without an email address
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body	DummyCredentialAssertionData	true	"Credential assertion request"
+//	@Failure		400
+//	@Failure		401
+//	@Failure		429	"Too many failed sign-ins"
+//	@Router			/fido/signin/passkey [post]
+func (s *FidoService) PasskeyLogin(c *gin.Context) {
+	if !requireJSONRequest(c) {
+		return
+	}
+
+	dbConn, ok := getDatabaseConnectionFromContext(c)
+	if !ok {
+		handleInternalError(c, nil, "Missing configuration for database")
+		return
+	}
+
+	res, ok := parseCredentialRequestResponseBody(c)
+	if !ok {
+		return
+	}
+	// the user is unknown until the user handle is resolved, thus only the IP
+	// address is checked here
+	if isMaliciousRequest(c, "") {
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
+	webAuthnSession, ok := consumeWebAuthnSession(c)
+	if !ok {
+		return
+	}
+
+	// the library returns no user on any error, thus the resolved user is kept
+	// so that a failure can be counted against its email address
+	var user *db.User
+	var dbErr error
+	handler := func(rawID, userHandle []byte) (webauthn.User, error) {
+		webAuthnUserID, err := uuid.ParseBytes(userHandle)
+		if err != nil {
+			return nil, fmt.Errorf("invalid user handle: %w", err)
+		}
+		// users without a WebAuthn user ID would share the nil handle
+		if webAuthnUserID == uuid.Nil {
+			return nil, errors.New("user not found")
+		}
+		found, err := db.GetUserByWebAuthnID(dbConn, webAuthnUserID)
+		if err != nil {
+			dbErr = err
+			return nil, err
+		}
+		if found == nil {
+			return nil, errors.New("user not found")
+		}
+		user = found
+		if isMaliciousRequest(c, found.Email) {
+			return nil, errSignInBlocked
+		}
+		if !found.IsEnabled {
+			return nil, errors.New("user is disabled")
+		}
+		return found, nil
+	}
+
+	_, credential, err := s.W.ValidatePasskeyLogin(handler, *webAuthnSession, res)
+	if err != nil {
+		if dbErr != nil {
+			handleInternalError(c, dbErr, "Failed to get user")
+			return
+		}
+		if errors.Is(err, errSignInBlocked) {
+			c.AbortWithStatus(http.StatusTooManyRequests)
+			return
+		}
+		email := ""
+		if user != nil {
+			email = user.Email
+		}
+		slog.Warn(
+			"Failed to validate passkey",
+			slog.String("error", err.Error()),
+			slog.String("email", email),
+		)
+		recordFailedSignIn(c, email)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	completeLogin(c, dbConn, user.Email, credential)
+}
+
+// requireJSONRequest rejects a request whose body is not JSON with 400. A
+// cross-site request can only be sent with this content type after a CORS
+// preflight, which is never granted, so that a third-party page cannot post to
+// the sign-in endpoints with the cookie of a user.
+func requireJSONRequest(c *gin.Context) bool {
+	if c.ContentType() != contentTypeJSON {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func parseCredentialRequestResponseBody(c *gin.Context) (*protocol.ParsedCredentialAssertionData, bool) {
+	res, err := protocol.ParseCredentialRequestResponseBody(c.Request.Body)
+	if err != nil {
+		if protocolErr, ok := err.(*protocol.Error); ok {
+			slog.Warn(
+				"Failed to parse credential request response body",
+				slog.String("error", protocolErr.Details),
+				slog.String("reason", protocolErr.DevInfo),
+			)
+		} else {
+			slog.Warn(
+				"Failed to parse credential request response body",
+				slog.String("error", err.Error()),
+			)
+		}
+		c.AbortWithStatus(http.StatusBadRequest)
+		return nil, false
+	}
+	return res, true
+}
+
+// consumeWebAuthnSession returns the WebAuthn session of a sign-in and removes
+// it from the cookie session, so that its challenge is used at most once
+// whether the validation succeeds or not.
+func consumeWebAuthnSession(c *gin.Context) (*webauthn.SessionData, bool) {
+	webAuthnSession, err := getWebAuthnSession(c)
+	if err != nil {
+		slog.Warn(
+			"WebAuthn session not found",
+			slog.String("error", err.Error()),
+		)
+		c.AbortWithStatus(http.StatusBadRequest)
+		return nil, false
+	}
+	if err := unsetWebAuthnSession(c); err != nil {
+		handleInternalError(c, err, "Failed to remove webauthn session")
+		return nil, false
+	}
+
+	// chanllenge generated previously is just a random string
+	// the challenge returned from client is base64url encoded
+	// thus, conversion is required for comparison purpose
+	webAuthnSession.Challenge = base64.RawURLEncoding.EncodeToString([]byte(webAuthnSession.Challenge))
+
+	return webAuthnSession, true
+}
+
+// completeLogin writes back the state of the credential used to sign in and,
+// unless the credential may have been cloned, marks the session as
+// authenticated.
+func completeLogin(c *gin.Context, dbConn *gorm.DB, email string, credential *webauthn.Credential) {
+	if err := db.UpdateCredentialAuthenticator(dbConn, email, credential); err != nil {
+		handleInternalError(c, err, "Failed to update credential")
+		return
+	}
+
+	// the warning is kept once it is set, thus the credential cannot be used
+	// until it is deleted and registered again
+	if credential.Authenticator.CloneWarning {
+		slog.Warn(
+			"Sign counter of credential indicates that it may have been cloned",
+			slog.String("email", email),
+			slog.String("credential_id", base64.RawURLEncoding.EncodeToString(credential.ID)),
+		)
+		recordFailedSignIn(c, email)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	recordSuccessfulSignIn(c, email)
 
-	if err := setAuthenticationToSession(c, true); err != nil {
+	if err := setAuthenticatedEmailToSession(c, email); err != nil {
 		handleInternalError(c, err, "Unable to save cookie session")
 		return
 	}
@@ -352,7 +584,7 @@ func (s *FidoService) Login(c *gin.Context) {
 		c.Status(http.StatusOK)
 		return
 	}
-	redirectURL := redirectURLValue.(string)
+	redirectURL, _ := redirectURLValue.(string)
 	if redirectURL == "" {
 		c.Status(http.StatusOK)
 		return
@@ -377,8 +609,9 @@ func (s *FidoService) GetCredentials(c *gin.Context) {
 	var viewModels []CredentialInfo
 	for _, credential := range credentials {
 		viewModels = append(viewModels, CredentialInfo{
-			ID:   credential.ID,
-			Name: credential.FriendlyName,
+			ID:             credential.ID,
+			Name:           credential.FriendlyName,
+			BackupEligible: credential.BackupEligible,
 		})
 	}
 	c.JSON(http.StatusOK, viewModels)

@@ -827,6 +827,32 @@ func TestSignIn_Success_ReturnsFound(t *testing.T) {
 	assert.Equal(t, userTestEmail, follow.Body.String())
 }
 
+// An authenticated session posting another email is signed out rather than
+// switched to the other user.
+func TestSignIn_AuthenticatedSessionWithAnotherEmail_SignsOut(t *testing.T) {
+	router, mock := userGetTestRouter()
+	router.POST("/signin", SignIn)
+	router.GET("/protected", RequiredAuthenticated(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := userFormRequest(http.MethodPost, "/signin", map[string]string{
+		"email": "admin@test.com",
+	})
+	w := serveInSession(t, router, authenticatedSession(userTestEmail), req)
+	assert.Equal(t, http.StatusFound, w.Code)
+
+	protected, _ := http.NewRequest(http.MethodGet, "/protected", nil)
+	for _, cookie := range req.Cookies() {
+		protected.AddCookie(cookie)
+	}
+	follow := userServe(router, protected)
+
+	assert.Equal(t, http.StatusFound, follow.Code)
+	assert.Contains(t, follow.Header().Get("Location"), "/signin")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSignIn_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
 	router, _ := userGetTestRouter()
 	router.POST("/signin", SignIn)

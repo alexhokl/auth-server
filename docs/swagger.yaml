@@ -171,6 +171,11 @@ definitions:
     type: object
   api.CredentialInfo:
     properties:
+      backup_eligible:
+        description: |-
+          BackupEligible is true for a credential which can be synced, such as
+          a passkey of a password manager
+        type: boolean
       id:
         items:
           type: integer
@@ -499,15 +504,58 @@ paths:
       - user
   /fido/signin/challenge:
     post:
+      consumes:
+      - application/json
       description: This starts the dance for sign in
       produces:
       - application/json
       responses:
+        "400":
+          description: Bad Request
         "401":
           description: Invalid email or password
         "429":
           description: Too many failed sign-ins
       summary: Serves a challenge for starting a login dance
+      tags:
+      - user
+  /fido/signin/passkey:
+    post:
+      consumes:
+      - application/json
+      description: This completes the dance for sign in without an email address
+      parameters:
+      - description: Credential assertion request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.DummyCredentialAssertionData'
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "429":
+          description: Too many failed sign-ins
+      summary: Verifies a passkey and sign in
+      tags:
+      - user
+  /fido/signin/passkey/challenge:
+    post:
+      consumes:
+      - application/json
+      description: This starts the dance for sign in without an email address
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+        "429":
+          description: Too many failed sign-ins
+      summary: Serves a challenge for signing in with a passkey
       tags:
       - user
   /introspect:

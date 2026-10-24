@@ -29,8 +29,12 @@
       </section>
       <section>
         <div>
+          <button type="button" id="passkey" hidden>Sign in with a passkey</button>
+          <p id="passkey-error" role="alert" hidden></p>
+        </div>
+        <div>
           <label for="email">Email</label>
-          <input type="email" name="email" id="email" autocomplete="username" required>
+          <input type="email" name="email" id="email" autocomplete="username webauthn" required>
         </div>
         <div>
           <button type="submit" form="signin" value="Submit">Continue</button>
@@ -42,6 +46,8 @@
   <footer>
   </footer>
 
+  <script src="/assets/http.js"></script>
+  <script src="/assets/passkey.js"></script>
 </body>
 </html>
 

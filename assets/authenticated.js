@@ -13,7 +13,28 @@ const isWebAuthnSupported = async () => {
   return false;
 }
 
+const showRegisterError = (message) => {
+  const registerError = document.getElementById('register-error');
+  registerError.textContent = message;
+  registerError.hidden = !message;
+};
+
 const registerKey = async () => {
+  showRegisterError('');
+  try {
+    await createKey();
+  } catch (err) {
+    console.warn('Registration failed', err);
+    if (err.name === 'InvalidStateError') {
+      // the authenticator holds one of the excluded credentials
+      showRegisterError('This passkey or key is already registered.');
+    } else if (err.name !== 'NotAllowedError') {
+      showRegisterError('Registration of the passkey or key failed.');
+    }
+  }
+};
+
+const createKey = async () => {
   const response = await post(registerUrl);
   const data = await parseJsonResponse(response);
 
@@ -32,6 +53,15 @@ const registerKey = async () => {
     timeout: resp.timeout,
     attestation: resp.attestation,
     authenticatorSelection: resp.authenticatorSelection,
+    // without it, a passkey provider would replace the passkey of the user
+    // and leave the registered credential orphaned
+    excludeCredentials: (resp.excludeCredentials ?? []).map(cred => {
+      return {
+        id: base64UrlDecode(cred.id),
+        type: cred.type,
+        transports: cred.transports,
+      }
+    }),
   };
 
   const credentials = await navigator.credentials.create({ publicKey: publicKeyCreationOptions });
@@ -39,9 +69,11 @@ const registerKey = async () => {
     id: credentials.id,
     type: credentials.type,
     rawId: base64UrlEncode(credentials.rawId),
+    authenticatorAttachment: credentials.authenticatorAttachment,
     response: {
       clientDataJSON: base64UrlEncode(credentials.response.clientDataJSON),
       attestationObject: base64UrlEncode(credentials.response.attestationObject),
+      transports: credentials.response.getTransports?.() ?? [],
     },
   };
 
@@ -71,14 +103,17 @@ const writeKeyTable = (keys) => {
     let row = document.createElement('tr');
     let nameCell = document.createElement('td');
     let idCell = document.createElement('td');
+    let syncedCell = document.createElement('td');
     let actionsCell = document.createElement('td');
 
     nameCell.innerHTML = `<input type="text" id="key_name_${index}" value="${k.name}"/>`;
     idCell.innerText = k.id;
+    syncedCell.innerText = k.backup_eligible ? 'Yes' : 'No';
     actionsCell.innerHTML = `<button onclick="deleteKey('${k.id}')">Delete</button><button onclick="updateKey('${k.id}', 'key_name_${index}')">Update</button>`;
 
     row.appendChild(nameCell);
     row.appendChild(idCell);
+    row.appendChild(syncedCell);
     row.appendChild(actionsCell);
 
     tableBody.appendChild(row);

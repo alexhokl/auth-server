@@ -338,7 +338,7 @@ func TestLoginChallenge_NoEmailInSession_ReturnsBadRequest(t *testing.T) {
 	router.POST("/fido/signin/challenge", fidoTestService(t).LoginChallenge)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -349,7 +349,7 @@ func TestLoginChallenge_NoDatabase_ReturnsInternalServerError(t *testing.T) {
 	router := fidoTestRouterWithoutDatabase()
 	router.POST("/fido/signin/challenge", fidoTestService(t).LoginChallenge)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -361,7 +361,7 @@ func TestLoginChallenge_UserQueryError_ReturnsUnauthorized(t *testing.T) {
 
 	fidoExpectUserQueryError(mock, fidoTestEmail)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -374,7 +374,7 @@ func TestLoginChallenge_UserNotFound_ReturnsUnauthorized(t *testing.T) {
 
 	fidoExpectUserNotFound(mock, fidoTestEmail)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -387,7 +387,7 @@ func TestLoginChallenge_UserDisabled_ReturnsUnauthorized(t *testing.T) {
 
 	fidoExpectGetUser(mock, fidoTestEmail, false, fidoCredentialRows(fidoTestEmail))
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -400,7 +400,7 @@ func TestLoginChallenge_UserWithoutCredentials_ReturnsInternalServerError(t *tes
 
 	fidoExpectGetUser(mock, fidoTestEmail, true, nil)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -411,7 +411,7 @@ func TestLoginChallenge_ExternalRedirectURI_ReturnsBadRequest(t *testing.T) {
 	router, _, mock := getTestRouter()
 	router.POST("/fido/signin/challenge", fidoTestService(t).LoginChallenge)
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge?redirect_uri=https%3A%2F%2Fevil.com", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge?redirect_uri=https%3A%2F%2Fevil.com", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -424,7 +424,7 @@ func TestLoginChallenge_Success_ReturnsOK(t *testing.T) {
 
 	fidoExpectGetUser(mock, fidoTestEmail, true, fidoCredentialRows(fidoTestEmail))
 
-	req, _ := http.NewRequest(http.MethodPost, "/fido/signin/challenge?redirect_uri=/authorize%3Fclient_id%3Dcli", nil)
+	req := fidoJSONRequest(http.MethodPost, "/fido/signin/challenge?redirect_uri=/authorize%3Fclient_id%3Dcli", "")
 	w := serveInSession(t, router, map[string]interface{}{sessionEmailKey: fidoTestEmail}, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

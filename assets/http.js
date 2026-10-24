@@ -52,3 +52,12 @@ const base64ToBase64Url = str =>
 
 const base64UrlToBase64 = str =>
   str.replace(/\-/g, '+').replace(/\_/g, '/').padEnd(Math.ceil(str.length / 4) * 4, '=');
+
+// only paths on this server are followed so that a sign in cannot take a user
+// to another site
+const isSafeRedirectUri = (redirectUri) => {
+  return redirectUri !== null &&
+    redirectUri.startsWith('/') &&
+    !redirectUri.startsWith('//') &&
+    !redirectUri.startsWith('/\\');
+};
